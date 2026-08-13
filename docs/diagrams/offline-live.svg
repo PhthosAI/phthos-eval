@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="880" height="260" viewBox="0 0 880 260" role="img" aria-labelledby="title">
+  <title id="title">Offline CI and live production use the same scorers</title>
+  <rect width="880" height="260" fill="#f6f8fa"/>
+  <text x="24" y="32" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="15" font-weight="700" fill="#1f2328">One scorer set. Two inputs.</text>
+
+  <rect x="24" y="56" width="280" height="168" rx="8" fill="#fff" stroke="#d0d7de"/>
+  <text x="164" y="84" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="13" font-weight="700" fill="#1f2328">Offline</text>
+  <text x="164" y="108" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12" fill="#656d76">dataset.json · N runs</text>
+  <text x="164" y="128" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12" fill="#656d76">phthos-eval run</text>
+  <text x="164" y="156" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12" fill="#1f2328">CI / pytest / laptop</text>
+  <text x="164" y="188" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="11" fill="#656d76">every case, every repeat</text>
+
+  <rect x="576" y="56" width="280" height="168" rx="8" fill="#fff" stroke="#d0d7de"/>
+  <text x="716" y="84" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="13" font-weight="700" fill="#1f2328">Live (self-host)</text>
+  <text x="716" y="108" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12" fill="#656d76">POST /v1/traces or OTel</text>
+  <text x="716" y="128" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12" fill="#656d76">sample ~5% · async</text>
+  <text x="716" y="156" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12" fill="#1f2328">Docker on your machine</text>
+  <text x="716" y="188" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="11" fill="#656d76">judge off unless you opt in</text>
+
+  <rect x="332" y="88" width="216" height="104" rx="8" fill="#fff" stroke="#1a7f37" stroke-width="2"/>
+  <text x="440" y="124" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="13" font-weight="700" fill="#1a7f37">Same scorers</text>
+  <text x="440" y="146" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12" fill="#1f2328">same diagnosis schema</text>
+  <text x="440" y="166" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="11" fill="#656d76">export live fail ’ run again</text>
+
+  <path d="M304 140 H332" stroke="#656d76" stroke-width="1.5" marker-end="url(#arr)"/>
+  <path d="M548 140 H576" stroke="#656d76" stroke-width="1.5" marker-start="url(#arr2)"/>
+  <defs>
+    <marker id="arr" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+      <path d="M0 0 L8 4 L0 8 z" fill="#656d76"/>
+    </marker>
+    <marker id="arr2" markerWidth="8" markerHeight="8" refX="2" refY="4" orient="auto">
+      <path d="M8 0 L0 4 L8 8 z" fill="#656d76"/>
+    </marker>
+  </defs>
+</svg>

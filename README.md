@@ -4,6 +4,10 @@ Score an **agent run**, not a chat reply.
 
 An agent can answer fluently and still call the wrong tool, loop, blow the budget, or break policy. Phthos Eval reads recorded traces (LLM steps + tool calls) and writes a **diagnosis JSON** you can gate CI on or hand to another system. It does **not** rewrite prompts, open PRs, or fine-tune.
 
+<p align="center">
+  <img src="docs/diagrams/overview.svg" alt="Your agent emits traces; Phthos Eval scores them into diagnosis JSON for CI or a later improver. This package does not apply the fix." width="880">
+</p>
+
 Python 3.11+. Install from PyPI:
 
 ```bash
@@ -11,6 +15,21 @@ pip install phthos-eval
 ```
 
 [PyPI](https://pypi.org/project/phthos-eval/) · [GitHub](https://github.com/PhthosAI/phthos-eval)
+
+```mermaid
+flowchart LR
+  subgraph stacks [Your agent]
+    LC[LangChain]
+    ADK[Google ADK]
+    OTH[CrewAI / custom]
+  end
+  stacks --> spans["spans: llm + tool"]
+  spans --> scorers[Phthos Eval scorers]
+  scorers --> dx[diagnosis.json]
+  dx --> ci[CI gate]
+  dx --> hint[change_class hint]
+  hint -.-> fix[You / other product applies the fix]
+```
 
 ---
 
@@ -22,6 +41,14 @@ pip install phthos-eval
 
 Optional: an LLM **judge** using **your** key. Without a key, everything above still runs.
 
+<p align="center">
+  <img src="docs/diagrams/offline-live.svg" alt="Offline CI datasets and sampled live traces both hit the same scorers and the same diagnosis schema." width="880">
+</p>
+
+<p align="center">
+  <img src="docs/diagrams/diagnosis.svg" alt="Diagnosis JSON: scores, typed failures with span ids, and a change_class hint. Schema 0.1.0." width="880">
+</p>
+
 ---
 
 ## Any agent stack (LangChain, Google ADK, …)
@@ -30,17 +57,19 @@ Phthos Eval does **not** import LangChain, Google ADK, CrewAI, LlamaIndex, AutoG
 
 Seamless here means one shared **trace shape**, not a plugin inside each framework:
 
-```
-  LangChain / LangGraph
-  Google ADK
-  CrewAI, LlamaIndex, AutoGen, custom
-           │
-           │  callbacks / OTel / your logger
-           ▼
-  spans: { id, type: llm|tool, name, args, cost_usd, latency_ms }
-           │
-           ▼
-  phthos-eval  →  diagnosis.json
+```mermaid
+flowchart TB
+  LC[LangChain / LangGraph]
+  ADK[Google ADK]
+  CR[CrewAI / AutoGen / custom]
+  OT[OpenTelemetry / OpenInference]
+  LC --> MAP[callbacks / export / your logger]
+  ADK --> MAP
+  CR --> MAP
+  OT --> MAP
+  MAP --> SP["spans: id, type llm or tool, name, args, cost"]
+  SP --> PE[phthos-eval]
+  PE --> DJ[diagnosis.json]
 ```
 
 **Today:** you map your framework’s events into that JSON (a small callback or post-run dump). Then `phthos-eval run` is the same for every stack.
@@ -87,6 +116,23 @@ python -m phthos_eval run -d examples/support_agent/dataset.json -o diagnosis.js
 ## Live engine (self-host)
 
 Same scorers as offline, on a **sampled** production stream. You run the process; data stays on your machine. This is not a hosted SaaS and not a LangSmith clone.
+
+<p align="center">
+  <img src="docs/diagrams/live.svg" alt="Live ingest returns immediately, samples about 5 percent, scores async, then shows pass rate, cost, and policy hits. No prompt editor." width="880">
+</p>
+
+```mermaid
+sequenceDiagram
+  participant Agent
+  participant Engine as Live engine
+  participant Worker as Async scorers
+  Agent->>Engine: POST /v1/traces
+  Engine-->>Agent: 202 accepted (sampled or not)
+  Note over Agent: Agent request already finished
+  Engine->>Worker: if sampled (~5%)
+  Worker->>Worker: same scorers as offline
+  Worker-->>Engine: diagnosis.json in SQLite
+```
 
 ```bash
 # default sample rate 5%, judge off

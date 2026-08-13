@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="880" height="300" viewBox="0 0 880 300" role="img" aria-labelledby="title">
+  <title id="title">Diagnosis artifact: scores, typed failures, change class</title>
+  <rect width="880" height="300" fill="#f6f8fa"/>
+  <text x="24" y="32" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="15" font-weight="700" fill="#1f2328">The artifact another system can read</text>
+  <text x="24" y="52" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12" fill="#656d76">Pass = job done + under budget + in policy, N times  not judge said 8/10.</text>
+
+  <!-- scores -->
+  <rect x="24" y="72" width="200" height="204" rx="8" fill="#fff" stroke="#d0d7de"/>
+  <text x="124" y="100" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12" font-weight="700" fill="#1f2328">scores</text>
+  <text x="40" y="128" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12" fill="#656d76">task_success</text>
+  <text x="40" y="150" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12" fill="#656d76">n_run_reliability</text>
+  <text x="40" y="172" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12" fill="#656d76">cost</text>
+  <text x="40" y="194" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12" fill="#656d76">latency_ms</text>
+  <text x="40" y="216" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12" fill="#656d76">policy_hits</text>
+  <text x="40" y="248" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="11" fill="#1a7f37">profile of the run</text>
+
+  <!-- failures -->
+  <rect x="248" y="72" width="280" height="204" rx="8" fill="#fff" stroke="#d0d7de"/>
+  <text x="388" y="100" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12" font-weight="700" fill="#1f2328">failures[]</text>
+  <rect x="268" y="116" width="240" height="28" rx="4" fill="#fff5f5" stroke="#ffd7d5"/>
+  <text x="388" y="135" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12" fill="#cf222e">wrong_tool · span s1</text>
+  <rect x="268" y="152" width="240" height="28" rx="4" fill="#fff5f5" stroke="#ffd7d5"/>
+  <text x="388" y="171" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12" fill="#cf222e">policy · span s3</text>
+  <rect x="268" y="188" width="240" height="28" rx="4" fill="#fff8c5" stroke="#f0d060"/>
+  <text x="388" y="207" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12" fill="#9a6700">budget · span s9</text>
+  <text x="388" y="248" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="11" fill="#656d76">typed + evidence pointer</text>
+
+  <!-- change_class -->
+  <rect x="552" y="72" width="304" height="204" rx="8" fill="#fff" stroke="#1a7f37" stroke-width="2"/>
+  <text x="704" y="100" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12" font-weight="700" fill="#1a7f37">change_class</text>
+  <text x="704" y="128" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12" fill="#1f2328">prompt · tool · policy</text>
+  <text x="704" y="148" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12" fill="#1f2328">model · finetune_data · none</text>
+  <text x="704" y="184" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12" fill="#656d76">hint for whoever fixes it</text>
+  <text x="704" y="204" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12" fill="#656d76">this package does not apply it</text>
+  <text x="704" y="240" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="11" fill="#1a7f37">schema 0.1.0</text>
+</svg>

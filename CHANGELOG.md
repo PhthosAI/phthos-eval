@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.1 — 2026-08-13
+
+- README diagrams: overview, offline vs live, diagnosis artifact, live sampling/UI.
+
 ## 0.2.0 — 2026-08-13
 
 - Self-host live engine: `phthos-eval live`, Docker Compose, SQLite history.

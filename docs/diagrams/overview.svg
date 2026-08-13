@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="880" height="320" viewBox="0 0 880 320" role="img" aria-labelledby="title desc">
+  <title id="title">How Phthos Eval works</title>
+  <desc id="desc">Agent traces become spans, scorers write a diagnosis JSON. Eval does not apply the fix.</desc>
+  <rect width="880" height="320" fill="#f6f8fa"/>
+  <text x="24" y="32" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="15" font-weight="700" fill="#1f2328">Score the run. Do not edit the agent.</text>
+  <text x="24" y="52" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12" fill="#656d76">Same scorers offline (CI) and live (sampled production).</text>
+
+  <!-- Agent -->
+  <rect x="24" y="80" width="150" height="88" rx="8" fill="#fff" stroke="#d0d7de"/>
+  <text x="99" y="114" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12" font-weight="650" fill="#1f2328">Your agent</text>
+  <text x="99" y="134" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="11" fill="#656d76">LangChain · ADK</text>
+  <text x="99" y="150" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="11" fill="#656d76">CrewAI · custom</text>
+
+  <path d="M174 124 H214" stroke="#656d76" stroke-width="1.5" marker-end="url(#arr)"/>
+
+  <!-- Spans -->
+  <rect x="214" y="80" width="150" height="88" rx="8" fill="#fff" stroke="#d0d7de"/>
+  <text x="289" y="114" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12" font-weight="650" fill="#1f2328">Traces</text>
+  <text x="289" y="134" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="11" fill="#656d76">llm + tool spans</text>
+  <text x="289" y="150" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="11" fill="#656d76">JSON or OTel</text>
+
+  <path d="M364 124 H404" stroke="#656d76" stroke-width="1.5" marker-end="url(#arr)"/>
+
+  <!-- Eval -->
+  <rect x="404" y="68" width="196" height="184" rx="8" fill="#fff" stroke="#1a7f37" stroke-width="2"/>
+  <text x="502" y="92" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12" font-weight="700" fill="#1a7f37">Phthos Eval</text>
+  <text x="502" y="112" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="11" fill="#656d76">wrong tool · schema</text>
+  <text x="502" y="128" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="11" fill="#656d76">budget · policy · loop</text>
+  <text x="502" y="154" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="11" fill="#1f2328">live: sample 5%, async</text>
+  <text x="502" y="178" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="11" font-weight="650" fill="#1f2328">diagnosis.json</text>
+  <text x="502" y="196" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="11" fill="#656d76">scores · failures</text>
+  <text x="502" y="212" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="11" fill="#656d76">change_class · span ids</text>
+  <text x="502" y="236" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="10" fill="#1a7f37">does not rewrite prompts</text>
+
+  <path d="M600 124 H640" stroke="#656d76" stroke-width="1.5" marker-end="url(#arr)"/>
+
+  <!-- Outputs -->
+  <rect x="640" y="72" width="216" height="56" rx="8" fill="#fff" stroke="#d0d7de"/>
+  <text x="748" y="94" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12" font-weight="650" fill="#1f2328">CI gate</text>
+  <text x="748" y="112" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="11" fill="#656d76">--fail-on-findings</text>
+
+  <rect x="640" y="140" width="216" height="56" rx="8" fill="#fff" stroke="#d0d7de"/>
+  <text x="748" y="162" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12" font-weight="650" fill="#1f2328">You / later improver</text>
+  <text x="748" y="180" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="11" fill="#656d76">read change_class · apply fix</text>
+
+  <rect x="640" y="208" width="216" height="44" rx="8" fill="#fff" stroke="#d0d7de" stroke-dasharray="4 3"/>
+  <text x="748" y="234" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="11" fill="#656d76">not this package</text>
+
+  <defs>
+    <marker id="arr" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+      <path d="M0 0 L8 4 L0 8 z" fill="#656d76"/>
+    </marker>
+  </defs>
+</svg>
