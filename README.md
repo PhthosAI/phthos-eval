@@ -129,8 +129,8 @@ Try the bundled examples after cloning this repo:
 ```bash
 python -m phthos_eval run -d fixtures/dataset.json -o diagnosis.json
 python -m phthos_eval run -d examples/support_agent/dataset.json -o diagnosis.json
-# Google ADK (needs `pip install google-adk`): python examples/adk/hours.py
-# Live: python examples/adk/hours.py --live
+# Google ADK + DuckDuckGo: python examples/adk/lib.py
+# Live: python examples/adk/live.py
 ```
 
 ---

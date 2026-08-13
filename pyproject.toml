@@ -1,6 +1,6 @@
 [project]
 name = "phthos-eval"
-version = "0.6.1"
+version = "0.6.2"
 description = "Offline, self-host, and hosted live agent eval: same scorers, diagnosis JSON. Cloud extras are ops, not scores."
 readme = "README.md"
 requires-python = ">=3.11"
