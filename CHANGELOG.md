@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.8 — 2026-08-13
+
+- ADK examples comment wrap / diagnose / ingest so live ingest is clearly “POST spans to the engine”, not a call into the agent.
+
 ## 0.6.7 — 2026-08-13
 
 - `agent_integration_examples/README.md` is the generic layout (framework / lib / live + wrap). ADK install and run commands stay under `google_adk/`.

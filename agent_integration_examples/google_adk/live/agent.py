@@ -24,11 +24,11 @@ async def main() -> None:
     if not os.environ.get("GOOGLE_API_KEY"):
         raise SystemExit("Set GOOGLE_API_KEY and retry.")
 
-    client = LiveClient(os.environ.get("PHTHOS_EVAL_URL", "http://127.0.0.1:8765"))
-    print("engine", client.health())
+    client = LiveClient(os.environ.get("PHTHOS_EVAL_URL", "http://127.0.0.1:8765"))  # HTTP to the engine
+    print("engine", client.health())  # optional: fail fast if compose is not up
 
-    sink = TraceSink()
-    agent = sink.wrap(
+    sink = TraceSink()  # required: buffer for llm/tool spans
+    agent = sink.wrap(  # required: attach collectors; ADK still runs the agent
         Agent(
             name="search",
             model="gemini-flash-latest",
@@ -36,17 +36,18 @@ async def main() -> None:
             tools=[duckduckgo_search],
         )
     )
-    runner = InMemoryRunner(agent=agent, app_name="demo")
+    runner = InMemoryRunner(agent=agent, app_name="demo")  # ADK, not eval
     await runner.session_service.create_session(app_name="demo", user_id="u", session_id="s")
-    async for _ in runner.run_async(
+    async for _ in runner.run_async(  # one user turn; sink fills during this run
         user_id="u",
         session_id="s",
         new_message=types.Content(role="user", parts=[types.Part(text="What is DuckDuckGo?")]),
     ):
         pass
 
+    # required live: POST spans to the engine (does not call the agent). agent_id is a UI label.
     print("ingest", sink.ingest(client, agent_id="search", expected_tools=["duckduckgo_search"]))
-    print("open", client.base_url)
+    print("open", client.base_url)  # optional: UI that scores those traces
 
 
 asyncio.run(main())
