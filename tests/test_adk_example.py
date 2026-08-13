@@ -5,6 +5,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def test_adk_lib_and_live_scripts_exist() -> None:
-    assert (ROOT / "examples" / "adk" / "lib.py").is_file()
-    assert (ROOT / "examples" / "adk" / "live.py").is_file()
+def test_google_adk_lib_and_live_scripts_exist() -> None:
+    adk = ROOT / "agent_integration_examples" / "google_adk"
+    assert (adk / "lib" / "agent.py").is_file()
+    assert (adk / "live" / "agent.py").is_file()
