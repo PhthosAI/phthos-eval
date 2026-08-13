@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.3 — 2026-08-13
+
+- README diagrams as PNG with absolute GitHub URLs so PyPI can load them (relative SVG only works on GitHub).
+
 ## 0.2.2 — 2026-08-13
 
 - Fix README diagrams (valid SVG + markdown image links). Sample metrics table from the bundled fixture.
