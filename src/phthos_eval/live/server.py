@@ -15,7 +15,12 @@ from urllib.parse import parse_qs, urlparse
 from phthos_eval.compare import compare_diagnoses
 from phthos_eval.constants import SCHEMA_VERSION
 from phthos_eval.finetune_export import labeled_trajectories
-from phthos_eval.gold import config_from_pack, pack_from_body, pack_to_dataset, source_hashes
+from phthos_eval.gold import (
+    config_from_pack,
+    pack_from_body,
+    pack_to_dataset,
+    source_hashes,
+)
 from phthos_eval.live.access import (
     AccessError,
     enforce_ingest_limit,

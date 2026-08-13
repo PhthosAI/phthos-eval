@@ -7,10 +7,15 @@ from pathlib import Path
 
 from phthos_eval.compare import compare_diagnoses
 from phthos_eval.finetune_export import labeled_trajectories
+from phthos_eval.gold import (
+    as_dataset,
+    is_gold_pack,
+    pack_to_dataset,
+    validate_gold_pack,
+)
 from phthos_eval.live.config import LiveSettings, clamp_rate
 from phthos_eval.live.demo import run_demo
 from phthos_eval.live.server import serve
-from phthos_eval.gold import as_dataset, is_gold_pack, pack_to_dataset, validate_gold_pack
 from phthos_eval.runner import run_dataset, write_diagnosis
 from phthos_eval.schema import validate_diagnosis
 

@@ -6,7 +6,12 @@ from pathlib import Path
 import pytest
 
 from phthos_eval.cli import main
-from phthos_eval.gold import build_pack, pack_to_dataset, source_hashes, validate_gold_pack
+from phthos_eval.gold import (
+    build_pack,
+    pack_to_dataset,
+    source_hashes,
+    validate_gold_pack,
+)
 from phthos_eval.live.client import LiveClient, LiveError
 from phthos_eval.live.config import LiveSettings
 from phthos_eval.live.server import serve_in_thread
