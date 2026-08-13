@@ -1,4 +1,4 @@
-"""Self-host live engine: sample traces, score with the offline scorers."""
+"""Live engine: sample traces, score with the offline scorers (self-host or hosted)."""
 
 from phthos_eval.live.client import LiveClient
 from phthos_eval.live.config import LiveSettings, should_sample

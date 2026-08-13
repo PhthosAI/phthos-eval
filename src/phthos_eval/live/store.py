@@ -3,13 +3,31 @@ from __future__ import annotations
 import json
 import sqlite3
 import threading
-from datetime import UTC, datetime
+import uuid
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
+
+from phthos_eval.live.auth import (
+    LOCAL_WORKSPACE,
+    hash_token,
+    new_api_key,
+    new_session_token,
+    normalize_email,
+)
 
 
 def _now() -> str:
     return datetime.now(UTC).isoformat()
+
+
+def _columns(conn: sqlite3.Connection, table: str) -> set[str]:
+    return {str(r[1]) for r in conn.execute(f"PRAGMA table_info({table})")}
+
+
+def _ensure_column(conn: sqlite3.Connection, table: str, name: str, spec: str) -> None:
+    if name not in _columns(conn, table):
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN {name} {spec}")
 
 
 class Store:
@@ -30,7 +48,8 @@ class Store:
                   status TEXT NOT NULL,
                   trace_json TEXT NOT NULL,
                   expected_tools_json TEXT,
-                  error TEXT
+                  error TEXT,
+                  workspace_id TEXT NOT NULL DEFAULT 'local'
                 );
                 CREATE TABLE IF NOT EXISTS diagnoses (
                   id TEXT PRIMARY KEY,
@@ -40,11 +59,75 @@ class Store:
                   change_class TEXT,
                   cost REAL,
                   policy_hits INTEGER,
-                  diagnosis_json TEXT NOT NULL
+                  diagnosis_json TEXT NOT NULL,
+                  workspace_id TEXT NOT NULL DEFAULT 'local'
+                );
+                CREATE TABLE IF NOT EXISTS workspaces (
+                  id TEXT PRIMARY KEY,
+                  name TEXT NOT NULL,
+                  created_at TEXT NOT NULL,
+                  alert_webhook TEXT,
+                  alert_email TEXT,
+                  alert_min_pass_rate REAL,
+                  last_pass_rate REAL
+                );
+                CREATE TABLE IF NOT EXISTS users (
+                  id TEXT PRIMARY KEY,
+                  email TEXT NOT NULL UNIQUE,
+                  password_hash TEXT NOT NULL,
+                  workspace_id TEXT NOT NULL,
+                  created_at TEXT NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS api_keys (
+                  id TEXT PRIMARY KEY,
+                  workspace_id TEXT NOT NULL,
+                  token_hash TEXT NOT NULL UNIQUE,
+                  prefix TEXT NOT NULL,
+                  created_at TEXT NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS sessions (
+                  id TEXT PRIMARY KEY,
+                  token_hash TEXT NOT NULL UNIQUE,
+                  user_id TEXT NOT NULL,
+                  workspace_id TEXT NOT NULL,
+                  expires_at TEXT NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS datasets (
+                  id TEXT PRIMARY KEY,
+                  workspace_id TEXT NOT NULL,
+                  name TEXT NOT NULL,
+                  body_json TEXT NOT NULL,
+                  created_at TEXT NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS alerts (
+                  id TEXT PRIMARY KEY,
+                  workspace_id TEXT NOT NULL,
+                  created_at TEXT NOT NULL,
+                  kind TEXT NOT NULL,
+                  payload_json TEXT NOT NULL
                 );
                 """
             )
+            _ensure_column(self._conn, "ingests", "workspace_id", "TEXT NOT NULL DEFAULT 'local'")
+            _ensure_column(self._conn, "diagnoses", "workspace_id", "TEXT NOT NULL DEFAULT 'local'")
+            self._conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_ingests_ws ON ingests(workspace_id)"
+            )
+            self._conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_diagnoses_ws ON diagnoses(workspace_id, created_at)"
+            )
+            self._ensure_local_workspace()
             self._conn.commit()
+
+    def _ensure_local_workspace(self) -> None:
+        row = self._conn.execute(
+            "SELECT id FROM workspaces WHERE id = ?", (LOCAL_WORKSPACE,)
+        ).fetchone()
+        if not row:
+            self._conn.execute(
+                "INSERT INTO workspaces (id, name, created_at) VALUES (?, ?, ?)",
+                (LOCAL_WORKSPACE, "local", _now()),
+            )
 
     def close(self) -> None:
         with self._lock:
@@ -59,15 +142,17 @@ class Store:
         sampled: bool,
         trace: dict[str, Any],
         expected_tools: list[str] | None,
+        workspace_id: str = LOCAL_WORKSPACE,
+        status: str | None = None,
     ) -> None:
-        status = "queued" if sampled else "skipped"
+        row_status = status or ("queued" if sampled else "skipped")
         with self._lock:
             self._conn.execute(
                 """
                 INSERT INTO ingests (
                   id, created_at, agent_id, case_id, sampled, status,
-                  trace_json, expected_tools_json, error
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL)
+                  trace_json, expected_tools_json, error, workspace_id
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, ?)
                 """,
                 (
                     ingest_id,
@@ -75,9 +160,10 @@ class Store:
                     agent_id,
                     case_id,
                     int(sampled),
-                    status,
+                    row_status,
                     json.dumps(trace),
                     json.dumps(expected_tools) if expected_tools is not None else None,
+                    workspace_id,
                 ),
             )
             self._conn.commit()
@@ -94,12 +180,17 @@ class Store:
         scores = diagnosis.get("scores") or {}
         passed = bool(diagnosis.get("cases") and diagnosis["cases"][0].get("passed"))
         with self._lock:
+            ingest = self._conn.execute(
+                "SELECT workspace_id FROM ingests WHERE id = ?",
+                (ingest_id,),
+            ).fetchone()
+            workspace_id = ingest["workspace_id"] if ingest else LOCAL_WORKSPACE
             self._conn.execute(
                 """
                 INSERT OR REPLACE INTO diagnoses (
                   id, ingest_id, created_at, passed, change_class, cost,
-                  policy_hits, diagnosis_json
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                  policy_hits, diagnosis_json, workspace_id
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     diagnosis.get("run_id") or ingest_id,
@@ -110,6 +201,7 @@ class Store:
                     scores.get("cost"),
                     scores.get("policy_hits"),
                     json.dumps(diagnosis),
+                    workspace_id,
                 ),
             )
             self._conn.execute(
@@ -118,34 +210,55 @@ class Store:
             )
             self._conn.commit()
 
-    def get_diagnosis(self, run_id: str) -> dict[str, Any] | None:
+    def get_diagnosis(
+        self, run_id: str, workspace_id: str | None = None
+    ) -> dict[str, Any] | None:
         with self._lock:
-            row = self._conn.execute(
-                "SELECT diagnosis_json FROM diagnoses WHERE id = ?",
-                (run_id,),
-            ).fetchone()
+            if workspace_id is None:
+                row = self._conn.execute(
+                    "SELECT diagnosis_json FROM diagnoses WHERE id = ?",
+                    (run_id,),
+                ).fetchone()
+            else:
+                row = self._conn.execute(
+                    "SELECT diagnosis_json FROM diagnoses WHERE id = ? AND workspace_id = ?",
+                    (run_id, workspace_id),
+                ).fetchone()
         if not row:
             return None
         return json.loads(row["diagnosis_json"])
 
-    def get_ingest(self, ingest_id: str) -> dict[str, Any] | None:
+    def get_ingest(
+        self, ingest_id: str, workspace_id: str | None = None
+    ) -> dict[str, Any] | None:
         with self._lock:
-            row = self._conn.execute(
-                "SELECT * FROM ingests WHERE id = ?",
-                (ingest_id,),
-            ).fetchone()
+            if workspace_id is None:
+                row = self._conn.execute(
+                    "SELECT * FROM ingests WHERE id = ?",
+                    (ingest_id,),
+                ).fetchone()
+            else:
+                row = self._conn.execute(
+                    "SELECT * FROM ingests WHERE id = ? AND workspace_id = ?",
+                    (ingest_id, workspace_id),
+                ).fetchone()
         if not row:
             return None
         return dict(row)
 
-    def counts(self) -> dict[str, int]:
+    def counts(self, workspace_id: str = LOCAL_WORKSPACE) -> dict[str, int]:
         with self._lock:
-            received = self._conn.execute("SELECT COUNT(*) FROM ingests").fetchone()[0]
+            received = self._conn.execute(
+                "SELECT COUNT(*) FROM ingests WHERE workspace_id = ?",
+                (workspace_id,),
+            ).fetchone()[0]
             sampled = self._conn.execute(
-                "SELECT COUNT(*) FROM ingests WHERE sampled = 1"
+                "SELECT COUNT(*) FROM ingests WHERE sampled = 1 AND workspace_id = ?",
+                (workspace_id,),
             ).fetchone()[0]
             scored = self._conn.execute(
-                "SELECT COUNT(*) FROM diagnoses"
+                "SELECT COUNT(*) FROM diagnoses WHERE workspace_id = ?",
+                (workspace_id,),
             ).fetchone()[0]
         return {
             "received": int(received),
@@ -153,20 +266,21 @@ class Store:
             "scored": int(scored),
         }
 
-    def recent(self, limit: int = 50) -> list[dict[str, Any]]:
+    def recent(self, limit: int = 50, workspace_id: str = LOCAL_WORKSPACE) -> list[dict[str, Any]]:
         with self._lock:
             rows = self._conn.execute(
                 """
                 SELECT id, created_at, passed, change_class, cost, policy_hits
                 FROM diagnoses
+                WHERE workspace_id = ?
                 ORDER BY created_at DESC
                 LIMIT ?
                 """,
-                (limit,),
+                (workspace_id, limit),
             ).fetchall()
         return [dict(r) for r in rows]
 
-    def summary(self) -> dict[str, Any]:
+    def summary(self, workspace_id: str = LOCAL_WORKSPACE) -> dict[str, Any]:
         with self._lock:
             row = self._conn.execute(
                 """
@@ -176,7 +290,9 @@ class Store:
                   SUM(cost) AS cost,
                   SUM(policy_hits) AS policy_hits
                 FROM diagnoses
-                """
+                WHERE workspace_id = ?
+                """,
+                (workspace_id,),
             ).fetchone()
         n = int(row["n"] or 0)
         return {
@@ -184,6 +300,252 @@ class Store:
             "cost": float(row["cost"]) if row["cost"] is not None else 0.0,
             "policy_hits": int(row["policy_hits"] or 0),
         }
+
+    def list_diagnoses(self, workspace_id: str) -> list[dict[str, Any]]:
+        with self._lock:
+            rows = self._conn.execute(
+                """
+                SELECT diagnosis_json FROM diagnoses
+                WHERE workspace_id = ?
+                ORDER BY created_at DESC
+                """,
+                (workspace_id,),
+            ).fetchall()
+        return [json.loads(r["diagnosis_json"]) for r in rows]
+
+    def prune(self, days: int) -> int:
+        if days <= 0:
+            return 0
+        cutoff = (datetime.now(UTC) - timedelta(days=days)).isoformat()
+        with self._lock:
+            cur = self._conn.execute("DELETE FROM diagnoses WHERE created_at < ?", (cutoff,))
+            n = int(cur.rowcount or 0)
+            self._conn.execute("DELETE FROM ingests WHERE created_at < ?", (cutoff,))
+            self._conn.commit()
+        return n
+
+    def create_workspace(self, name: str) -> str:
+        wid = str(uuid.uuid4())
+        with self._lock:
+            self._conn.execute(
+                "INSERT INTO workspaces (id, name, created_at) VALUES (?, ?, ?)",
+                (wid, name.strip() or "workspace", _now()),
+            )
+            self._conn.commit()
+        return wid
+
+    def get_workspace(self, workspace_id: str) -> dict[str, Any] | None:
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT * FROM workspaces WHERE id = ?",
+                (workspace_id,),
+            ).fetchone()
+        return dict(row) if row else None
+
+    def create_user(self, email: str, password_hash: str, workspace_id: str) -> str:
+        uid = str(uuid.uuid4())
+        with self._lock:
+            self._conn.execute(
+                """
+                INSERT INTO users (id, email, password_hash, workspace_id, created_at)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (uid, normalize_email(email), password_hash, workspace_id, _now()),
+            )
+            self._conn.commit()
+        return uid
+
+    def get_user_by_email(self, email: str) -> dict[str, Any] | None:
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT * FROM users WHERE email = ?",
+                (normalize_email(email),),
+            ).fetchone()
+        return dict(row) if row else None
+
+    def get_user(self, user_id: str) -> dict[str, Any] | None:
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT * FROM users WHERE id = ?",
+                (user_id,),
+            ).fetchone()
+        return dict(row) if row else None
+
+    def add_api_key(self, workspace_id: str) -> str:
+        raw, digest, prefix = new_api_key()
+        with self._lock:
+            self._conn.execute(
+                """
+                INSERT INTO api_keys (id, workspace_id, token_hash, prefix, created_at)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (str(uuid.uuid4()), workspace_id, digest, prefix, _now()),
+            )
+            self._conn.commit()
+        return raw
+
+    def workspace_for_api_key(self, raw: str) -> dict[str, str] | None:
+        digest = hash_token(raw)
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT workspace_id FROM api_keys WHERE token_hash = ?",
+                (digest,),
+            ).fetchone()
+        if not row:
+            return None
+        return {"workspace_id": row["workspace_id"], "user_id": ""}
+
+    def create_session(self, user_id: str, workspace_id: str, days: int = 7) -> str:
+        raw, digest = new_session_token()
+        expires = (datetime.now(UTC) + timedelta(days=days)).isoformat()
+        with self._lock:
+            self._conn.execute(
+                """
+                INSERT INTO sessions (id, token_hash, user_id, workspace_id, expires_at)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (str(uuid.uuid4()), digest, user_id, workspace_id, expires),
+            )
+            self._conn.commit()
+        return raw
+
+    def workspace_for_session(self, raw: str) -> dict[str, str] | None:
+        digest = hash_token(raw)
+        now = _now()
+        with self._lock:
+            row = self._conn.execute(
+                """
+                SELECT user_id, workspace_id, expires_at FROM sessions
+                WHERE token_hash = ?
+                """,
+                (digest,),
+            ).fetchone()
+        if not row:
+            return None
+        if str(row["expires_at"]) < now:
+            return None
+        return {"user_id": row["user_id"], "workspace_id": row["workspace_id"]}
+
+    def delete_session(self, raw: str) -> None:
+        digest = hash_token(raw)
+        with self._lock:
+            self._conn.execute("DELETE FROM sessions WHERE token_hash = ?", (digest,))
+            self._conn.commit()
+
+    def update_alerts(
+        self,
+        workspace_id: str,
+        *,
+        webhook: str | None = None,
+        email: str | None = None,
+        min_pass_rate: float | None = None,
+    ) -> None:
+        with self._lock:
+            self._conn.execute(
+                """
+                UPDATE workspaces
+                SET alert_webhook = COALESCE(?, alert_webhook),
+                    alert_email = COALESCE(?, alert_email),
+                    alert_min_pass_rate = COALESCE(?, alert_min_pass_rate)
+                WHERE id = ?
+                """,
+                (webhook, email, min_pass_rate, workspace_id),
+            )
+            self._conn.commit()
+
+    def set_last_pass_rate(self, workspace_id: str, rate: float | None) -> None:
+        with self._lock:
+            self._conn.execute(
+                "UPDATE workspaces SET last_pass_rate = ? WHERE id = ?",
+                (rate, workspace_id),
+            )
+            self._conn.commit()
+
+    def log_alert(self, workspace_id: str, kind: str, payload: dict[str, Any]) -> None:
+        with self._lock:
+            self._conn.execute(
+                """
+                INSERT INTO alerts (id, workspace_id, created_at, kind, payload_json)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (str(uuid.uuid4()), workspace_id, _now(), kind, json.dumps(payload)),
+            )
+            self._conn.commit()
+
+    def recent_alerts(self, workspace_id: str, limit: int = 20) -> list[dict[str, Any]]:
+        with self._lock:
+            rows = self._conn.execute(
+                """
+                SELECT id, created_at, kind, payload_json FROM alerts
+                WHERE workspace_id = ?
+                ORDER BY created_at DESC
+                LIMIT ?
+                """,
+                (workspace_id, limit),
+            ).fetchall()
+        out = []
+        for row in rows:
+            item = dict(row)
+            item["payload"] = json.loads(item.pop("payload_json"))
+            out.append(item)
+        return out
+
+    def put_dataset(self, workspace_id: str, name: str, body: dict[str, Any]) -> str:
+        did = str(uuid.uuid4())
+        with self._lock:
+            self._conn.execute(
+                """
+                INSERT INTO datasets (id, workspace_id, name, body_json, created_at)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (did, workspace_id, name.strip() or "dataset", json.dumps(body), _now()),
+            )
+            self._conn.commit()
+        return did
+
+    def list_datasets(self, workspace_id: str) -> list[dict[str, Any]]:
+        with self._lock:
+            rows = self._conn.execute(
+                """
+                SELECT id, name, created_at FROM datasets
+                WHERE workspace_id = ?
+                ORDER BY created_at DESC
+                """,
+                (workspace_id,),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def get_dataset(self, workspace_id: str, dataset_id: str) -> dict[str, Any] | None:
+        with self._lock:
+            row = self._conn.execute(
+                """
+                SELECT id, name, created_at, body_json FROM datasets
+                WHERE id = ? AND workspace_id = ?
+                """,
+                (dataset_id, workspace_id),
+            ).fetchone()
+        if not row:
+            return None
+        data = dict(row)
+        data["body"] = json.loads(data.pop("body_json"))
+        return data
+
+    def all_datasets(self, workspace_id: str) -> list[dict[str, Any]]:
+        with self._lock:
+            rows = self._conn.execute(
+                """
+                SELECT id, name, created_at, body_json FROM datasets
+                WHERE workspace_id = ?
+                ORDER BY created_at DESC
+                """,
+                (workspace_id,),
+            ).fetchall()
+        out = []
+        for row in rows:
+            item = dict(row)
+            item["body"] = json.loads(item.pop("body_json"))
+            out.append(item)
+        return out
 
     def append_export(
         self,

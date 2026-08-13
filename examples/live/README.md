@@ -2,6 +2,8 @@
 
 Same scorers as `phthos-eval run`, on a **sampled** stream. Data stays in `./phthos-eval-data` (or the Compose volume). No hosted LLM. No auto-fix.
 
+Tenant login / cloud URL is optional **hosted mode** on this same image: [`docs/hosted.md`](../../docs/hosted.md) and `docker-compose.hosted.yml`. Default Compose below is still open self-host (no accounts).
+
 Default sample rate is **5%**. The LLM judge is **off** unless you pass `--live-judge` *and* set a key. Do not run a judge on 100% of production.
 
 ## Docker Compose
@@ -74,7 +76,7 @@ Or `POST /v1/traces` with that JSON. OTLP/HTTP **JSON** (OpenInference or GenAI 
 
 | Method | Path | Purpose |
 |--------|------|---------|
-| GET | `/health` | Process up, sample rate, judge on/off |
+| GET | `/health` or `/status` | Process up, mode, schema version, sample rate, judge on/off |
 | GET | `/v1/scores` | Pass rate, cost, policy hits, recent sampled runs |
 | GET | `/v1/diagnoses/{id}` | Full diagnosis JSON (same schema as offline) |
 | POST | `/v1/traces` | Ingest (202 immediately) |

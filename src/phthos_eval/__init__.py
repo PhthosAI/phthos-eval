@@ -1,4 +1,4 @@
-"""Phthos Eval — offline runner and self-host live engine."""
+"""Phthos Eval — offline runner and live engine (self-host or hosted)."""
 
 from phthos_eval.constants import (
     CHANGE_CLASSES,

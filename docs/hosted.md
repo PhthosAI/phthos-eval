@@ -1,0 +1,67 @@
+# Hosted mode
+
+Same live engine as [self-host](../examples/live/README.md). We (or you) set `PHTHOS_EVAL_HOSTED=1` / `--hosted` and expose a URL. **OSS self-host is unchanged** if you omit that flag.
+
+This is not a rewrite, not Stripe (phase 5), not SAML, not a hosted judge we meter.
+
+## Run it
+
+```bash
+phthos-eval live --hosted --host 0.0.0.0 -c examples/live/config.json
+# or
+PHTHOS_EVAL_HOSTED=1 docker compose -f docker-compose.hosted.yml up --build
+```
+
+Open the URL → sign up. Copy the API key (shown once).
+
+| Env | Meaning |
+|-----|---------|
+| `PHTHOS_EVAL_HOSTED` | `1` = require login / Bearer key; isolate tenants |
+| `PHTHOS_EVAL_RETENTION_DAYS` | Default `30` |
+| `PHTHOS_EVAL_ALERT_MIN_PASS_RATE` | Default `0.8` until the workspace overrides it |
+| `PHTHOS_EVAL_SMTP_HOST` / `PORT` / `USER` / `PASSWORD` / `FROM` | Email alerts (optional) |
+| `PHTHOS_EVAL_PUBLIC_URL` | `https://…` so session cookies get `Secure` |
+| Judge keys | Still **your** key, still off unless `--live-judge` |
+
+## Auth
+
+- UI: email + password cookie (`POST /v1/signup`, `/v1/login`)
+- API / CI: `Authorization: Bearer pk_…` or `X-Phthos-Key`
+- `/health` and `/status` stay public (no tenant data)
+
+```python
+from phthos_eval.live import LiveClient
+
+client = LiveClient("https://eval.example.com", api_key="pk_…")
+client.ingest(spans=[...], agent_id="support", expected_tools=["search"])
+```
+
+Team B cannot `GET /v1/diagnoses/{id}` for team A’s runs.
+
+## Dashboard
+
+Logged-in UI: live scores, history, datasets (upload / run / download), alerts (webhook and optional email). No prompt editor. Eval does not apply a fix.
+
+## Offline + CI
+
+Keep using the pip package locally (no Docker, no cloud):
+
+```bash
+pip install phthos-eval
+phthos-eval run -d eval/dataset.json -o diagnosis.json --fail-on-findings
+```
+
+Or the same dataset against the hosted engine:
+
+```python
+client = LiveClient(os.environ["PHTHOS_EVAL_CLOUD_URL"], api_key=os.environ["PHTHOS_EVAL_CLOUD_KEY"])
+created = client.put_dataset("ci", json.load(open("eval/dataset.json")))
+doc = client.run_dataset(created["id"])
+# same diagnosis schema as OSS
+```
+
+Export everything: `GET /v1/export`.
+
+## Status
+
+`GET /status` → `{ ok, product, mode: "hosted"|"self-host", schema_version, sample_rate, judge, retention_days }`.

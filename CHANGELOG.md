@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.0 — 2026-08-13
+
+- Optional **hosted mode** (`--hosted` / `PHTHOS_EVAL_HOSTED=1`): email sign-up, API keys, isolated tenants, datasets, score-drop alerts (webhook / SMTP), workspace export. Same engine and diagnosis schema as self-host. OSS `phthos-eval live` without the flag is unchanged (no accounts).
+- `GET /status` (and `/health`) report `mode`, `schema_version`, retention. Privacy: [`docs/PRIVACY.md`](docs/PRIVACY.md). How to run hosted: [`docs/hosted.md`](docs/hosted.md).
+
 ## 0.3.0 — 2026-08-13
 
 - Diagnosis schema **0.2.0**: industry profile — `pass^N` (`task_success`), mean N-run reliability, `pass@N`, cost-per-task, p50/p95 latency, tool steps, token sum if logged, per-type hit counts.

@@ -39,9 +39,15 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Opt in to BYOK LLM judge on sampled traces (off by default).",
     )
+    live_p.add_argument(
+        "--hosted",
+        action="store_true",
+        help="Require sign-up/API keys and isolate tenants (same engine; we operate this in cloud).",
+    )
 
     demo_p = sub.add_parser("live-demo", help="POST example traces at a running live engine")
     demo_p.add_argument("--url", default="http://127.0.0.1:8765")
+    demo_p.add_argument("--api-key", default=None, help="Bearer key when the engine is in hosted mode")
 
     args = parser.parse_args(argv)
     if args.cmd == "run":
@@ -75,9 +81,11 @@ def main(argv: list[str] | None = None) -> int:
             settings.sample_rate = clamp_rate(args.sample_rate)
         if args.live_judge:
             settings.live_judge = True
+        if args.hosted:
+            settings.hosted = True
         serve(settings)
         return 0
-    return run_demo(args.url)
+    return run_demo(args.url, api_key=args.api_key)
 
 
 if __name__ == "__main__":
