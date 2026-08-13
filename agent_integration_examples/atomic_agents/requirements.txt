@@ -1,0 +1,5 @@
+atomic-agents
+instructor
+openai
+ddgs
+phthos-eval>=0.6.4

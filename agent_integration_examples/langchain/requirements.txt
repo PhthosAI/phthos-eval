@@ -1,0 +1,4 @@
+langchain>=0.3
+langchain-openai
+ddgs
+phthos-eval>=0.6.4

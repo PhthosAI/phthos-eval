@@ -1,0 +1,4 @@
+autogen-agentchat
+autogen-ext[openai]
+ddgs
+phthos-eval>=0.6.4
