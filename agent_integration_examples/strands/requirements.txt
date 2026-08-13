@@ -1,0 +1,4 @@
+strands-agents
+strands-agents-tools
+ddgs
+phthos-eval>=0.6.4

@@ -1,0 +1,3 @@
+agent-framework
+ddgs
+phthos-eval>=0.6.4

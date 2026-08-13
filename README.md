@@ -131,8 +131,7 @@ Try the bundled examples after cloning this repo:
 ```bash
 python -m phthos_eval run -d fixtures/dataset.json -o diagnosis.json
 python -m phthos_eval run -d examples/support_agent/dataset.json -o diagnosis.json
-# Wrap + score: python agent_integration_examples/google_adk/lib/agent.py
-# Wrap + live: python agent_integration_examples/google_adk/live/agent.py
+# Wrap examples: agent_integration_examples/<framework>/{lib,live}/agent.py
 ```
 
 ---

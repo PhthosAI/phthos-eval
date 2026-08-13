@@ -1,0 +1,5 @@
+langgraph
+langchain-openai
+langchain-core
+ddgs
+phthos-eval>=0.6.4

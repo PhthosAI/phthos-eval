@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.10 — 2026-08-13
+
+- Same wrap → run → diagnose/ingest samples for LangChain, LangGraph, CrewAI, OpenAI Agents SDK, LlamaIndex, PydanticAI, AutoGen/AG2, Microsoft Agent Framework, Semantic Kernel, Smolagents, Agno, Haystack, DSPy, CAMEL, Strands, Langroid, Letta, Atomic Agents, BeeAI, and LiveKit Agents.
+
 ## 0.6.9 — 2026-08-13
 
 - Google ADK example installs from `agent_integration_examples/google_adk/requirements.txt`.
