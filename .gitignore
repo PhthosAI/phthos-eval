@@ -13,3 +13,5 @@ coverage/
 *.egg-info/
 diagnosis.json
 *.diagnosis.json
+dist/
+.pypirc

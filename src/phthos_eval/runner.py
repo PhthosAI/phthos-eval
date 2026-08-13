@@ -2,16 +2,22 @@ from __future__ import annotations
 
 import json
 import uuid
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
-from phthos_eval import FAILURE_TO_CHANGE_CLASS, SCHEMA_VERSION
+from phthos_eval.constants import FAILURE_TO_CHANGE_CLASS, SCHEMA_VERSION
 from phthos_eval.judge import maybe_judge
 from phthos_eval.schema import validate_diagnosis
 from phthos_eval.scorers import score_trace
+from phthos_eval.types import Scorer
 
 
-def run_dataset(dataset: dict[str, Any]) -> dict[str, Any]:
+def run_dataset(
+    dataset: dict[str, Any],
+    *,
+    scorers: Sequence[Scorer] | None = None,
+) -> dict[str, Any]:
     n_runs = int(dataset.get("n_runs") or 2)
     if n_runs < 1:
         raise ValueError("n_runs must be >= 1")
@@ -40,6 +46,7 @@ def run_dataset(dataset: dict[str, Any]) -> dict[str, Any]:
                 dataset=dataset,
                 case_id=case_id,
                 trace_index=idx,
+                scorers=list(scorers) if scorers is not None else None,
             )
             if not fails:
                 trace_passes += 1

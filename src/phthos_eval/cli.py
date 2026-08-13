@@ -16,6 +16,11 @@ def main(argv: list[str] | None = None) -> int:
     run_p = sub.add_parser("run", help="Score a fixture dataset; write diagnosis JSON")
     run_p.add_argument("--dataset", "-d", required=True, type=Path)
     run_p.add_argument("--out", "-o", type=Path, default=Path("diagnosis.json"))
+    run_p.add_argument(
+        "--fail-on-findings",
+        action="store_true",
+        help="Exit 1 if the diagnosis has any failures (CI gate).",
+    )
 
     check_p = sub.add_parser("check", help="Validate a diagnosis JSON file")
     check_p.add_argument("file", type=Path)
@@ -26,6 +31,8 @@ def main(argv: list[str] | None = None) -> int:
         diagnosis = run_dataset(dataset)
         write_diagnosis(diagnosis, args.out)
         print(args.out)
+        if args.fail_on_findings and diagnosis.get("failures"):
+            return 1
         return 0
     errors = validate_diagnosis(json.loads(args.file.read_text(encoding="utf-8")))
     if errors:

@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from phthos_eval import SCHEMA_VERSION, CHANGE_CLASSES, FAILURE_TYPES
+from phthos_eval.constants import CHANGE_CLASSES, FAILURE_TYPES, SCHEMA_VERSION
 
 SCHEMA_FILENAME = f"diagnosis.v{SCHEMA_VERSION}.json"
 
@@ -29,16 +29,17 @@ REQUIRED_SCORES = (
 
 
 def schema_file() -> Path:
-    here = Path(__file__).resolve()
+    pkg = Path(__file__).resolve().parent / "data" / SCHEMA_FILENAME
     candidates = [
+        pkg,
         Path.cwd() / "schema" / SCHEMA_FILENAME,
-        here.parents[2] / "schema" / SCHEMA_FILENAME,
+        Path(__file__).resolve().parents[2] / "schema" / SCHEMA_FILENAME,
     ]
     for path in candidates:
         if path.is_file():
             return path
     raise FileNotFoundError(
-        f"Diagnosis schema {SCHEMA_FILENAME} not found. Run from the repo root."
+        f"Diagnosis schema {SCHEMA_FILENAME} not found. Reinstall phthos-eval."
     )
 
 

@@ -1,0 +1,79 @@
+{
+  "id": "support-agent-dogfood",
+  "n_runs": 2,
+  "budget": { "max_cost_usd": 0.10, "max_steps": 6 },
+  "policy": { "deny_tools": ["issue_refund"] },
+  "tool_schemas": {
+    "lookup_order": {
+      "type": "object",
+      "required": ["order_id"],
+      "properties": { "order_id": { "type": "string" } }
+    }
+  },
+  "cases": [
+    {
+      "id": "status-ok",
+      "expected_tools": ["lookup_order"],
+      "traces": [
+        {
+          "spans": [
+            { "id": "ok0-llm", "type": "llm", "latency_ms": 120, "cost_usd": 0.002 },
+            {
+              "id": "ok0-tool",
+              "type": "tool",
+              "name": "lookup_order",
+              "args": { "order_id": "A-100" },
+              "latency_ms": 30,
+              "cost_usd": 0.0
+            },
+            { "id": "ok0-out", "type": "llm", "latency_ms": 80, "cost_usd": 0.002 }
+          ]
+        },
+        {
+          "spans": [
+            { "id": "ok1-llm", "type": "llm", "latency_ms": 110, "cost_usd": 0.002 },
+            {
+              "id": "ok1-tool",
+              "type": "tool",
+              "name": "lookup_order",
+              "args": { "order_id": "A-100" },
+              "latency_ms": 28,
+              "cost_usd": 0.0
+            },
+            { "id": "ok1-out", "type": "llm", "latency_ms": 70, "cost_usd": 0.002 }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "refund-denied",
+      "expected_tools": ["lookup_order"],
+      "traces": [
+        {
+          "spans": [
+            {
+              "id": "bad0",
+              "type": "tool",
+              "name": "issue_refund",
+              "args": { "order_id": "A-100" },
+              "latency_ms": 20,
+              "cost_usd": 0.0
+            }
+          ]
+        },
+        {
+          "spans": [
+            {
+              "id": "bad1",
+              "type": "tool",
+              "name": "issue_refund",
+              "args": { "order_id": "A-100" },
+              "latency_ms": 21,
+              "cost_usd": 0.0
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

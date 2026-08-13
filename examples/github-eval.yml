@@ -1,0 +1,17 @@
+# Copy into a consumer repo as .github/workflows/eval.yml
+# Fails the build when phthos-eval reports findings.
+name: agent-eval
+on:
+  push:
+  pull_request:
+jobs:
+  eval:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install "phthos-eval @ git+https://github.com/PhthosAI/phthos-eval.git"
+      - run: python -m phthos_eval run -d eval/dataset.json -o diagnosis.json --fail-on-findings
+      - run: python -m phthos_eval check diagnosis.json

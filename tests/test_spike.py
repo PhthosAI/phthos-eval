@@ -44,6 +44,15 @@ def test_fixture_run_emits_typed_failure_and_change_class() -> None:
     assert by_id["fail-wrong-tool"]["passed"] is False
 
 
+def test_support_agent_dogfood() -> None:
+    path = ROOT / "examples" / "support_agent" / "dataset.json"
+    doc = run_dataset(json.loads(path.read_text(encoding="utf-8")))
+    by_id = {c["case_id"]: c for c in doc["cases"]}
+    assert by_id["status-ok"]["passed"] is True
+    assert by_id["refund-denied"]["passed"] is False
+    assert any(f["type"] == "policy" for f in doc["failures"])
+
+
 def test_cli_writes_file_and_check_passes(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     monkeypatch.delenv("PHTHOS_EVAL_API_KEY", raising=False)
@@ -54,3 +63,4 @@ def test_cli_writes_file_and_check_passes(tmp_path: Path, monkeypatch: pytest.Mo
     assert raw["failures"]
     assert raw["change_class"] != "none"
     assert main(["check", str(out)]) == 0
+    assert main(["run", "-d", str(DATASET), "-o", str(out), "--fail-on-findings"]) == 1
