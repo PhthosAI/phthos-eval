@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.6 — 2026-08-13
+
+- Google ADK examples are wrap → run → `diagnose` / `ingest` only. No copied callbacks, no extra eval dataset fields.
+
 ## 0.6.5 — 2026-08-13
 
 - `TraceSink.wrap(agent)` adapters for the main Python agent stacks: Google ADK, LangChain/LangGraph, CrewAI, OpenAI Agents SDK, LlamaIndex, PydanticAI, AutoGen/AG2, Microsoft Agent Framework, Semantic Kernel, Smolagents, Agno, Haystack, DSPy, CAMEL, Strands, Langroid, Letta, Atomic Agents, BeeAI, LiveKit Agents. Same span shape; no extra framework installs.
