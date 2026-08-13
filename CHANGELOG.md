@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.0 — 2026-08-13
+
+- Self-host live engine: `phthos-eval live`, Docker Compose, SQLite history.
+- Ingest via SDK (`LiveClient`) or OTLP/HTTP JSON. Default sample rate 5%. Scoring is async.
+- Same diagnosis schema as offline. Export a sampled run into a dataset for `phthos-eval run`.
+- Minimal UI (pass rate, cost, policy hits, diagnosis JSON). LLM judge off unless `--live-judge`.
+
 ## 0.1.1 — 2026-08-13
 
 - User-facing README: install from PyPI, project integration, metrics, framework-agnostic traces (LangChain, Google ADK, OTel later).

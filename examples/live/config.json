@@ -1,0 +1,20 @@
+{
+  "id": "live-demo",
+  "budget": {
+    "max_cost_usd": 0.05,
+    "max_steps": 8
+  },
+  "policy": {
+    "deny_tools": ["delete_user", "send_money"]
+  },
+  "tool_schemas": {
+    "search": {
+      "type": "object",
+      "required": ["query"],
+      "properties": {
+        "query": { "type": "string" }
+      }
+    }
+  },
+  "default_expected_tools": ["search"]
+}
