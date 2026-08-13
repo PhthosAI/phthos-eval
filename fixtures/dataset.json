@@ -1,0 +1,208 @@
+{
+  "id": "spike-fixture",
+  "n_runs": 2,
+  "budget": {
+    "max_cost_usd": 0.05,
+    "max_steps": 8
+  },
+  "policy": {
+    "deny_tools": ["delete_user", "send_money"]
+  },
+  "tool_schemas": {
+    "search": {
+      "type": "object",
+      "required": ["query"],
+      "properties": {
+        "query": { "type": "string" }
+      }
+    }
+  },
+  "cases": [
+    {
+      "id": "pass-search",
+      "expected_tools": ["search"],
+      "traces": [
+        {
+          "spans": [
+            { "id": "p0-s0", "type": "llm", "latency_ms": 80, "cost_usd": 0.001 },
+            {
+              "id": "p0-s1",
+              "type": "tool",
+              "name": "search",
+              "args": { "query": "store hours" },
+              "latency_ms": 40,
+              "cost_usd": 0.0
+            },
+            { "id": "p0-s2", "type": "llm", "latency_ms": 60, "cost_usd": 0.001 }
+          ]
+        },
+        {
+          "spans": [
+            { "id": "p1-s0", "type": "llm", "latency_ms": 90, "cost_usd": 0.001 },
+            {
+              "id": "p1-s1",
+              "type": "tool",
+              "name": "search",
+              "args": { "query": "store hours" },
+              "latency_ms": 35,
+              "cost_usd": 0.0
+            },
+            { "id": "p1-s2", "type": "llm", "latency_ms": 55, "cost_usd": 0.001 }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "fail-wrong-tool",
+      "expected_tools": ["search"],
+      "traces": [
+        {
+          "spans": [
+            {
+              "id": "w0-s0",
+              "type": "tool",
+              "name": "lookup",
+              "args": { "q": "hours" },
+              "latency_ms": 20,
+              "cost_usd": 0.0
+            }
+          ]
+        },
+        {
+          "spans": [
+            {
+              "id": "w1-s0",
+              "type": "tool",
+              "name": "lookup",
+              "args": { "q": "hours" },
+              "latency_ms": 22,
+              "cost_usd": 0.0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "fail-budget",
+      "expected_tools": ["search"],
+      "traces": [
+        {
+          "spans": [
+            {
+              "id": "b0-s0",
+              "type": "tool",
+              "name": "search",
+              "args": { "query": "everything" },
+              "latency_ms": 4000,
+              "cost_usd": 0.8
+            }
+          ]
+        },
+        {
+          "spans": [
+            {
+              "id": "b1-s0",
+              "type": "tool",
+              "name": "search",
+              "args": { "query": "everything" },
+              "latency_ms": 4100,
+              "cost_usd": 0.9
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "fail-policy",
+      "expected_tools": ["search"],
+      "traces": [
+        {
+          "spans": [
+            {
+              "id": "y0-s0",
+              "type": "tool",
+              "name": "send_money",
+              "args": { "to": "acct", "amount": 50 },
+              "latency_ms": 15,
+              "cost_usd": 0.0
+            }
+          ]
+        },
+        {
+          "spans": [
+            {
+              "id": "y1-s0",
+              "type": "tool",
+              "name": "send_money",
+              "args": { "to": "acct", "amount": 50 },
+              "latency_ms": 16,
+              "cost_usd": 0.0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "fail-loop",
+      "expected_tools": ["search"],
+      "traces": [
+        {
+          "spans": [
+            {
+              "id": "l0-s0",
+              "type": "tool",
+              "name": "search",
+              "args": { "query": "x" },
+              "latency_ms": 10,
+              "cost_usd": 0.001
+            },
+            {
+              "id": "l0-s1",
+              "type": "tool",
+              "name": "search",
+              "args": { "query": "x" },
+              "latency_ms": 10,
+              "cost_usd": 0.001
+            },
+            {
+              "id": "l0-s2",
+              "type": "tool",
+              "name": "search",
+              "args": { "query": "x" },
+              "latency_ms": 10,
+              "cost_usd": 0.001
+            }
+          ]
+        },
+        {
+          "spans": [
+            {
+              "id": "l1-s0",
+              "type": "tool",
+              "name": "search",
+              "args": { "query": "x" },
+              "latency_ms": 10,
+              "cost_usd": 0.001
+            },
+            {
+              "id": "l1-s1",
+              "type": "tool",
+              "name": "search",
+              "args": { "query": "x" },
+              "latency_ms": 10,
+              "cost_usd": 0.001
+            },
+            {
+              "id": "l1-s2",
+              "type": "tool",
+              "name": "search",
+              "args": { "query": "x" },
+              "latency_ms": 10,
+              "cost_usd": 0.001
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

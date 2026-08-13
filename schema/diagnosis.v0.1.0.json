@@ -1,0 +1,108 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://phthos.ai/eval/schema/diagnosis/v0.1.0",
+  "title": "Phthos Eval Diagnosis",
+  "description": "One artifact per offline (or later live) eval run. Another system reads this; this product does not apply the fix.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "run_id",
+    "dataset_id",
+    "n_runs",
+    "scores",
+    "failures",
+    "change_class",
+    "evidence",
+    "judge"
+  ],
+  "properties": {
+    "schema_version": { "type": "string", "const": "0.1.0" },
+    "run_id": { "type": "string", "minLength": 1 },
+    "dataset_id": { "type": "string", "minLength": 1 },
+    "n_runs": { "type": "integer", "minimum": 1 },
+    "scores": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "task_success",
+        "cost",
+        "latency_ms",
+        "policy_hits",
+        "n_run_reliability"
+      ],
+      "properties": {
+        "task_success": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+        "cost": { "type": ["number", "null"], "minimum": 0 },
+        "latency_ms": { "type": ["number", "null"], "minimum": 0 },
+        "policy_hits": { "type": ["integer", "null"], "minimum": 0 },
+        "n_run_reliability": { "type": ["number", "null"], "minimum": 0, "maximum": 1 }
+      }
+    },
+    "failures": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/failure" }
+    },
+    "change_class": {
+      "type": "string",
+      "enum": ["prompt", "tool", "policy", "model", "finetune_data", "none"]
+    },
+    "evidence": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/pointer" }
+    },
+    "judge": { "$ref": "#/$defs/judge" },
+    "cases": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["case_id", "passed", "failures"],
+        "properties": {
+          "case_id": { "type": "string" },
+          "passed": { "type": "boolean" },
+          "failures": {
+            "type": "array",
+            "items": { "$ref": "#/$defs/failure" }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "pointer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["span_id"],
+      "properties": {
+        "span_id": { "type": "string" },
+        "step_id": { "type": ["string", "null"] },
+        "case_id": { "type": ["string", "null"] },
+        "trace_index": { "type": ["integer", "null"] }
+      }
+    },
+    "failure": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "span_id", "evidence"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["wrong_tool", "loop", "budget", "policy"]
+        },
+        "span_id": { "type": "string" },
+        "evidence": { "$ref": "#/$defs/pointer" }
+      }
+    },
+    "judge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["skipped"],
+      "properties": {
+        "skipped": { "type": "boolean" },
+        "reason": { "type": ["string", "null"] },
+        "score": { "type": ["number", "null"] },
+        "error": { "type": ["string", "null"] }
+      }
+    }
+  }
+}

@@ -1,0 +1,2 @@
+[console_scripts]
+phthos-eval = phthos_eval.cli:main

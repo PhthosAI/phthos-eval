@@ -1,3 +1,13 @@
+Metadata-Version: 2.4
+Name: phthos-eval
+Version: 0.1.0
+Summary: Offline agent eval: deterministic scorers and a diagnosis artifact.
+License: MIT
+Requires-Python: >=3.11
+Description-Content-Type: text/markdown
+Provides-Extra: dev
+Requires-Dist: pytest>=8; extra == "dev"
+
 # Phthos Eval
 
 Open-source agent evaluation. Deterministic scorers first. Optional LLM judge uses **your** key.

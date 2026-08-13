@@ -10,3 +10,6 @@ __pycache__/
 .venv/
 coverage/
 .pytest_cache/
+diagnosis.json
+*.diagnosis.json
+.pytest_cache/
