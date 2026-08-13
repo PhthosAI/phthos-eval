@@ -212,3 +212,32 @@ def test_oss_self_host_still_open(tmp_path: Path) -> None:
     finally:
         httpd.shutdown()
         app.stop()
+
+
+def test_hosted_gold_admin_put_viewer_forbidden(hosted) -> None:
+    url, _app = hosted
+    owner = LiveClient(url)
+    owner.api_key = owner.signup("gold-owner@example.com", "password1", "g")["api_key"]
+    put = owner.put_gold(
+        "support",
+        {
+            "tool_schemas": DATASET["tool_schemas"],
+            "policy": DATASET["policy"],
+            "budget": DATASET["budget"],
+            "default_expected_tools": ["search"],
+        },
+    )
+    assert put["stale"] is False
+    assert owner.gold("support")["pack"]["agent_id"] == "support"
+
+    owner.invite("gold-view@example.com", "password1", "viewer")
+    viewer = LiveClient(url)
+    viewer.login("gold-view@example.com", "password1")
+    got = viewer.gold("support")
+    assert got["stale"] is False
+    with pytest.raises(LiveError) as exc:
+        viewer.put_gold("support", {"tool_schemas": {}, "policy": {}})
+    assert exc.value.status == 403
+    with pytest.raises(LiveError) as exc:
+        viewer.sync_gold("support", {"tool_schemas": {}, "policy": {}})
+    assert exc.value.status == 403

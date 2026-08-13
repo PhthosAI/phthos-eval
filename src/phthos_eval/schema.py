@@ -18,6 +18,8 @@ REQUIRED_TOP = (
     "change_class",
     "evidence",
     "judge",
+    "gold_version",
+    "gold_stale",
 )
 REQUIRED_SCORES = (
     "task_success",
@@ -95,6 +97,10 @@ def validate_diagnosis(doc: dict[str, Any]) -> list[str]:
     judge = doc.get("judge")
     if not isinstance(judge, dict) or "skipped" not in judge:
         errors.append("judge.skipped is required")
+    if "gold_version" in doc and doc.get("gold_version") is not None and not isinstance(doc.get("gold_version"), str):
+        errors.append("gold_version must be string or null")
+    if not isinstance(doc.get("gold_stale"), bool):
+        errors.append("gold_stale must be a boolean")
     return errors
 
 

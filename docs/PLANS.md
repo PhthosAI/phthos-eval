@@ -8,7 +8,7 @@ Money is **ops**, not whether the score is real. OSS / self-host (`phthos-eval l
 | Free (hosted) | $0 | 30 days | 2,000 | 10,000 | 3 | no | no |
 | Pro | $49 / month | 365 days | 100,000 | 500,000 | 25 | yes (metered) | yes |
 
-Deterministic scorers and diagnosis schema **0.2.0** are on every plan. Going over a hosted volume cap returns HTTP 429; the score is not faked.
+Deterministic scorers and diagnosis schema **0.3.0** are on every plan. Going over a hosted volume cap returns HTTP 429; the score is not faked.
 
 Hosted judge (Pro): we call a model with **our** key and meter `hosted_judge` usage (`GET /v1/usage`). BYOK remains available (`judge_mode=byok`). OSS has no hosted-judge dependency.
 

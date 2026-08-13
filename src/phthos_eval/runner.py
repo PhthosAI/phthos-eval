@@ -132,6 +132,8 @@ def run_dataset(
         "change_class": _change_class(all_failures),
         "evidence": [f["evidence"] for f in all_failures],
         "judge": {"skipped": True, "reason": "pending", "score": None, "error": None},
+        "gold_version": dataset.get("gold_version") if dataset.get("gold_version") else None,
+        "gold_stale": bool(dataset.get("gold_stale")),
         "cases": case_rows,
     }
     if judge is False:

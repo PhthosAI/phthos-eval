@@ -8,6 +8,7 @@ from phthos_eval.constants import (
     SCHEMA_VERSION,
 )
 from phthos_eval.finetune_export import labeled_trajectories
+from phthos_eval.gold import as_dataset, build_pack, pack_to_dataset, validate_gold_pack
 from phthos_eval.runner import run_dataset, write_diagnosis
 from phthos_eval.schema import load_schema, schema_file, validate_diagnosis
 from phthos_eval.scorers import (
@@ -54,17 +55,21 @@ __all__ = [
     "ToolSchemaScorer",
     "TraceSink",
     "WrongToolScorer",
+    "as_dataset",
+    "build_pack",
     "compare_diagnoses",
     "default_scorers",
     "failure",
     "instrument",
     "labeled_trajectories",
     "load_schema",
+    "pack_to_dataset",
     "pointer",
     "run_dataset",
     "schema_file",
     "score_trace",
     "validate_diagnosis",
+    "validate_gold_pack",
     "write_diagnosis",
 ]
 

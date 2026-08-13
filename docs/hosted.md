@@ -64,7 +64,7 @@ after = client.run_dataset(created["id"], agent_version="v2")
 client.compare(before_run_id=before["run_id"], after_run_id=after["run_id"])
 ```
 
-Same diagnosis schema as OSS. Consumer contract (poll, webhook, fine-tune export): [`CONSUMER.md`](CONSUMER.md).
+Same diagnosis schema as OSS (0.3.0, including `gold_version`). Consumer contract (poll, webhook, living gold, fine-tune export): [`CONSUMER.md`](CONSUMER.md), [`GOLD.md`](GOLD.md). Hosted: GET gold is any workspace user; PUT / sync / confirm / reject need **admin**.
 
 Export everything: `GET /v1/export`. Labeled trajectories for **their** trainer: `GET /v1/export/finetune?dataset_id=`.
 

@@ -36,8 +36,9 @@ flowchart LR
 1. **Deterministic checks** (no API key): expected tools, argument shape, cost/step budget, deny-list policy, repeated tool loops.
 2. **A success profile, not one score**: `task_success` (pass^N), `n_run_reliability` (mean repeat pass-rate), `pass_at_n` (pass@N), plus cost-per-task, p95 latency, tool steps, policy hits.
 3. **A diagnosis file**: scores, typed failures with span ids, and a `change_class` hint (`tool`, `policy`, `prompt`, …).
+4. **Living gold**: a versioned pack (schemas + policy + SOP hash + confirmed cases). Live scores record `gold_version`. If those sources move, gold is **stale**. Failed sampled runs become candidates until a human/CI confirms them. See [`docs/GOLD.md`](docs/GOLD.md).
 
-Optional: an LLM **judge** using **your** key. Without a key, everything above still runs.
+Optional: an LLM **judge** using **your** key. Without a key, everything above still runs. Task AI and the Phthos gateway remain **customers after this phase** (public HTTPS + API key) — they are not bundled here.
 
 ![Offline and live use the same scorers](https://raw.githubusercontent.com/PhthosAI/phthos-eval/main/docs/diagrams/offline-live.png)
 
@@ -118,6 +119,8 @@ Save traces as JSON (see [Dataset format](#dataset-format)), then:
 ```bash
 python -m phthos_eval run -d eval/dataset.json -o diagnosis.json
 python -m phthos_eval check diagnosis.json
+# living gold pack (schemas + policy + SOP hash + cases) also works as -d
+python -m phthos_eval gold -f eval/gold.json --dataset-out eval/dataset.json
 ```
 
 Fail CI when anything is wrong:
@@ -174,7 +177,7 @@ client = LiveClient("http://127.0.0.1:8765")
 client.ingest(spans=[...], agent_id="support", expected_tools=["search"])
 ```
 
-`GET /v1/scores` · `GET /v1/diagnoses` · `GET /v1/diagnoses/{id}` · `POST /v1/compare` · `POST /v1/diagnoses/{id}/export` writes an offline dataset you can `phthos-eval run`. After **you** change the agent: `phthos-eval compare --before a.json --after b.json`. Contract: [`docs/CONSUMER.md`](docs/CONSUMER.md). Example: [`examples/consumer/`](examples/consumer/).
+`GET /v1/scores` · `GET /v1/diagnoses` · `GET /v1/diagnoses/{id}` · `PUT /v1/gold/{agent_id}` · `POST /v1/gold/{agent_id}/sync` · `POST /v1/compare` · `POST /v1/diagnoses/{id}/export` writes an offline dataset you can `phthos-eval run`. After **you** change the agent: `phthos-eval compare --before a.json --after b.json`. Living gold: [`docs/GOLD.md`](docs/GOLD.md). Contract: [`docs/CONSUMER.md`](docs/CONSUMER.md). Example: [`examples/consumer/`](examples/consumer/).
 
 Demo (forces 100% sample — **not** for production):
 

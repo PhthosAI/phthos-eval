@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.0 — 2026-08-14
+
+- Living gold: versioned pack (`PUT /v1/gold/{agent_id}`), `POST .../sync` marks **stale** when tool/policy/SOP hashes move, sampled live fails become **candidates** (`confirm` / `reject`). Judge cannot confirm.
+- Diagnosis schema **0.3.0**: `gold_version`, `gold_stale`. CLI `phthos-eval gold`. Docs: [`docs/GOLD.md`](docs/GOLD.md).
+
 ## 0.6.10 — 2026-08-13
 
 - Same wrap → run → diagnose/ingest samples for LangChain, LangGraph, CrewAI, OpenAI Agents SDK, LlamaIndex, PydanticAI, AutoGen/AG2, Microsoft Agent Framework, Semantic Kernel, Smolagents, Agno, Haystack, DSPy, CAMEL, Strands, Langroid, Letta, Atomic Agents, BeeAI, and LiveKit Agents.

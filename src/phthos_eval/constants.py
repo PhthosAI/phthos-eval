@@ -1,4 +1,4 @@
-SCHEMA_VERSION = "0.2.0"
+SCHEMA_VERSION = "0.3.0"
 
 CHANGE_CLASSES = ("prompt", "tool", "policy", "model", "finetune_data", "none")
 FAILURE_TYPES = ("wrong_tool", "loop", "budget", "policy")

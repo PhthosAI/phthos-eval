@@ -13,6 +13,8 @@ def score_one_trace(
     expected_tools: list[str] | None = None,
     run_id: str | None = None,
     judge: bool | dict[str, Any] = False,
+    gold_version: str | None = None,
+    gold_stale: bool = False,
 ) -> dict[str, Any]:
     """Score one live trace with the same runner and scorers as offline."""
     tools = expected_tools
@@ -24,6 +26,8 @@ def score_one_trace(
         "budget": config.get("budget") or {},
         "policy": config.get("policy") or {},
         "tool_schemas": config.get("tool_schemas") or {},
+        "gold_version": gold_version if gold_version else config.get("gold_version"),
+        "gold_stale": gold_stale,
         "cases": [
             {
                 "id": case_id,

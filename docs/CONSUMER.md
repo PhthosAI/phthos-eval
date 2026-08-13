@@ -2,7 +2,7 @@
 
 Versioned interface for **another system** (CI, an improver product, Task AI, a gateway-backed agent). Phthos Eval **scores** and returns diagnosis JSON. It does **not** apply the fix.
 
-Diagnosis schema **0.2.0** (`additionalProperties: false`). Do not put `agent_version` inside the diagnosis file. Live ingest stores it as `ingests.agent_id`.
+Diagnosis schema **0.3.0** (`additionalProperties: false`). Includes `gold_version` and `gold_stale`. Do not put `agent_version` inside the diagnosis file. Live ingest stores it as `ingests.agent_id`. Living gold: [`GOLD.md`](GOLD.md).
 
 ## Auth
 
@@ -13,7 +13,7 @@ Diagnosis schema **0.2.0** (`additionalProperties: false`). Do not put `agent_ve
 
 Always **public HTTPS + API key** when the engine is on another host. No Docker DNS, no shared compose, no `TASK_AI_*` in this repo.
 
-## Diagnosis (schema 0.2.0)
+## Diagnosis (schema 0.3.0)
 
 `change_class` is enough to branch:
 
@@ -51,7 +51,9 @@ If a workspace webhook is set (`POST /v1/alerts`), each scored run POSTs:
   "run_id": "…",
   "change_class": "tool",
   "passed": false,
-  "schema_version": "0.2.0",
+  "schema_version": "0.3.0",
+  "gold_version": "g_…",
+  "gold_stale": false,
   "scores": { "task_success": 0.0 }
 }
 ```
@@ -83,6 +85,27 @@ phthos-eval compare --before before.json --after after.json
 ```
 
 `task_success_delta` is after − before. Live watch after deploy: `GET /v1/scores?agent_id=v2` (same scorers).
+
+## Living gold
+
+Versioned pack of tool schemas, policy, SOP hash, and **confirmed** cases. Live scores bind to the active pack (`gold_version` / `gold_stale`). Sampled fails become candidates; a human or CI token must confirm. The judge cannot confirm.
+
+```
+PUT  /v1/gold/{agent_id}
+GET  /v1/gold/{agent_id}
+POST /v1/gold/{agent_id}/sync
+GET  /v1/gold/{agent_id}/candidates?status=pending
+GET  /v1/gold/{agent_id}/export
+POST /v1/gold/candidates/{id}/confirm
+POST /v1/gold/candidates/{id}/reject
+```
+
+```bash
+phthos-eval gold -f gold.json --dataset-out dataset.json
+phthos-eval run -d gold.json -o diagnosis.json
+```
+
+Details: [`GOLD.md`](GOLD.md).
 
 ## Fine-tune export (file only)
 

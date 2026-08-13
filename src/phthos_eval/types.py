@@ -65,6 +65,8 @@ class Diagnosis(TypedDict):
     change_class: ChangeClass
     evidence: list[EvidencePointer]
     judge: JudgeResult
+    gold_version: str | None
+    gold_stale: bool
     cases: list[CaseResult]
 
 
