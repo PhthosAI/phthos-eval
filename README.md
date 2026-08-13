@@ -24,6 +24,42 @@ Optional: an LLM **judge** using **your** key. Without a key, everything above s
 
 ---
 
+## Any agent stack (LangChain, Google ADK, …)
+
+Phthos Eval does **not** import LangChain, Google ADK, CrewAI, LlamaIndex, AutoGen, or similar. Those packages **run** the agent. We **score** what it did.
+
+Seamless here means one shared **trace shape**, not a plugin inside each framework:
+
+```
+  LangChain / LangGraph
+  Google ADK
+  CrewAI, LlamaIndex, AutoGen, custom
+           │
+           │  callbacks / OTel / your logger
+           ▼
+  spans: { id, type: llm|tool, name, args, cost_usd, latency_ms }
+           │
+           ▼
+  phthos-eval  →  diagnosis.json
+```
+
+**Today:** you map your framework’s events into that JSON (a small callback or post-run dump). Then `phthos-eval run` is the same for every stack.
+
+**Typical mappings**
+
+| Stack | Where traces already exist | What you map |
+|-------|----------------------------|--------------|
+| LangChain / LangGraph | Callbacks, LangSmith export, or run tree | Each LLM/tool event → one span |
+| Google ADK | Session / event log | Tool calls → `type: tool` |
+| CrewAI / AutoGen | Step / message log | Same |
+| Anything on OpenTelemetry / OpenInference | Span export | Filter LLM + tool spans |
+
+You do **not** wrap the agent in a Phthos runtime. Swap LangChain for ADK and the **eval file stays valid** as long as spans still look like the table above.
+
+**Later (live engine):** ingest OpenTelemetry so many stacks work with no custom JSON. Until then, the adapter is “emit spans.”
+
+---
+
 ## Quick start
 
 Save traces as JSON (see [Dataset format](#dataset-format)), then:
