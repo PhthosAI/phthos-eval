@@ -51,6 +51,11 @@ class LiveSettings:
     smtp_password: str | None = None
     smtp_from: str | None = None
     public_base_url: str | None = None
+    ops_secret: str | None = None
+    sso_secret: str | None = None
+    hosted_judge_api_key: str | None = None
+    hosted_judge_base_url: str | None = None
+    hosted_judge_model: str | None = None
 
     @classmethod
     def from_env(cls) -> LiveSettings:
@@ -78,6 +83,11 @@ class LiveSettings:
             smtp_password=os.environ.get("PHTHOS_EVAL_SMTP_PASSWORD") or None,
             smtp_from=os.environ.get("PHTHOS_EVAL_SMTP_FROM") or None,
             public_base_url=os.environ.get("PHTHOS_EVAL_PUBLIC_URL") or None,
+            ops_secret=os.environ.get("PHTHOS_EVAL_OPS_SECRET") or None,
+            sso_secret=os.environ.get("PHTHOS_EVAL_SSO_SECRET") or None,
+            hosted_judge_api_key=os.environ.get("PHTHOS_EVAL_HOSTED_JUDGE_API_KEY") or None,
+            hosted_judge_base_url=os.environ.get("PHTHOS_EVAL_HOSTED_JUDGE_BASE_URL") or None,
+            hosted_judge_model=os.environ.get("PHTHOS_EVAL_HOSTED_JUDGE_MODEL") or None,
         )
 
     @property

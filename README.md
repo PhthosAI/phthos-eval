@@ -210,6 +210,8 @@ client.ingest(spans=[...], expected_tools=["search"])
 
 CI can keep using `phthos-eval run` locally, or `put_dataset` / `run_dataset` on the hosted URL. Details: [`docs/hosted.md`](docs/hosted.md). What is stored: [`docs/PRIVACY.md`](docs/PRIVACY.md). `GET /status` for health.
 
+Paid cloud extras (retention, SAML, hosted judges we meter, seats) are **ops**, not a paywall on scores. Catalog: [`docs/PLANS.md`](docs/PLANS.md). Stripe / SAML UI is the private overlay, not this package.
+
 ---
 
 ## Integrate in a project
@@ -394,7 +396,10 @@ Not required. Deterministic scorers always run.
 | `PHTHOS_EVAL_JUDGE_MODEL` | Model id (default `gpt-4o-mini`) |
 | `PHTHOS_EVAL_LIVE_JUDGE` | Live engine only: set to `1` (or `--live-judge`) to run the judge on **sampled** traces. Off by default so a leftover key cannot bill every ingest. |
 | `PHTHOS_EVAL_HOSTED` | `1` or `--hosted`: require sign-up / API keys and isolate tenants. Omit for open self-host. |
-| `PHTHOS_EVAL_RETENTION_DAYS` | Hosted auto-prune (default 30). |
+| `PHTHOS_EVAL_RETENTION_DAYS` | Hosted auto-prune fallback (plan retention wins: free 30d, pro 365d). |
+| `PHTHOS_EVAL_OPS_SECRET` | Operator header `X-Phthos-Ops` to set a workspace plan (cloud overlay / Stripe). |
+| `PHTHOS_EVAL_SSO_SECRET` | HMAC secret for `POST /v1/sso/consume` (SAML overlay). |
+| `PHTHOS_EVAL_HOSTED_JUDGE_API_KEY` | Our judge key for Pro hosted-judge (metered). Unset on OSS. |
 
 Do **not** reuse the **agent’s** production keys as the judge unless you intend that. Agent keys run the system under test; judge keys only score. With no judge key, `judge.skipped` is `true` and `reason` is `no_key`.
 

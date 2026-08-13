@@ -69,14 +69,20 @@ class Store:
                   alert_webhook TEXT,
                   alert_email TEXT,
                   alert_min_pass_rate REAL,
-                  last_pass_rate REAL
+                  last_pass_rate REAL,
+                  plan TEXT NOT NULL DEFAULT 'free',
+                  judge_mode TEXT NOT NULL DEFAULT 'off',
+                  byok_key TEXT,
+                  byok_base_url TEXT,
+                  byok_model TEXT
                 );
                 CREATE TABLE IF NOT EXISTS users (
                   id TEXT PRIMARY KEY,
                   email TEXT NOT NULL UNIQUE,
                   password_hash TEXT NOT NULL,
                   workspace_id TEXT NOT NULL,
-                  created_at TEXT NOT NULL
+                  created_at TEXT NOT NULL,
+                  role TEXT NOT NULL DEFAULT 'owner'
                 );
                 CREATE TABLE IF NOT EXISTS api_keys (
                   id TEXT PRIMARY KEY,
@@ -106,10 +112,22 @@ class Store:
                   kind TEXT NOT NULL,
                   payload_json TEXT NOT NULL
                 );
+                CREATE TABLE IF NOT EXISTS usage_events (
+                  id TEXT PRIMARY KEY,
+                  workspace_id TEXT NOT NULL,
+                  created_at TEXT NOT NULL,
+                  kind TEXT NOT NULL
+                );
                 """
             )
             _ensure_column(self._conn, "ingests", "workspace_id", "TEXT NOT NULL DEFAULT 'local'")
             _ensure_column(self._conn, "diagnoses", "workspace_id", "TEXT NOT NULL DEFAULT 'local'")
+            _ensure_column(self._conn, "workspaces", "plan", "TEXT NOT NULL DEFAULT 'free'")
+            _ensure_column(self._conn, "workspaces", "judge_mode", "TEXT NOT NULL DEFAULT 'off'")
+            _ensure_column(self._conn, "workspaces", "byok_key", "TEXT")
+            _ensure_column(self._conn, "workspaces", "byok_base_url", "TEXT")
+            _ensure_column(self._conn, "workspaces", "byok_model", "TEXT")
+            _ensure_column(self._conn, "users", "role", "TEXT NOT NULL DEFAULT 'owner'")
             self._conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_ingests_ws ON ingests(workspace_id)"
             )
@@ -313,23 +331,70 @@ class Store:
             ).fetchall()
         return [json.loads(r["diagnosis_json"]) for r in rows]
 
-    def prune(self, days: int) -> int:
+    def prune(self, days: int, workspace_id: str | None = None) -> int:
         if days <= 0:
             return 0
         cutoff = (datetime.now(UTC) - timedelta(days=days)).isoformat()
         with self._lock:
-            cur = self._conn.execute("DELETE FROM diagnoses WHERE created_at < ?", (cutoff,))
-            n = int(cur.rowcount or 0)
-            self._conn.execute("DELETE FROM ingests WHERE created_at < ?", (cutoff,))
+            if workspace_id:
+                cur = self._conn.execute(
+                    "DELETE FROM diagnoses WHERE created_at < ? AND workspace_id = ?",
+                    (cutoff, workspace_id),
+                )
+                n = int(cur.rowcount or 0)
+                self._conn.execute(
+                    "DELETE FROM ingests WHERE created_at < ? AND workspace_id = ?",
+                    (cutoff, workspace_id),
+                )
+            else:
+                cur = self._conn.execute("DELETE FROM diagnoses WHERE created_at < ?", (cutoff,))
+                n = int(cur.rowcount or 0)
+                self._conn.execute("DELETE FROM ingests WHERE created_at < ?", (cutoff,))
             self._conn.commit()
         return n
+
+    def list_workspaces(self) -> list[dict[str, Any]]:
+        with self._lock:
+            rows = self._conn.execute("SELECT * FROM workspaces").fetchall()
+        return [dict(r) for r in rows]
+
+    def set_workspace_plan(self, workspace_id: str, plan: str) -> None:
+        with self._lock:
+            self._conn.execute(
+                "UPDATE workspaces SET plan = ? WHERE id = ?",
+                (plan, workspace_id),
+            )
+            self._conn.commit()
+
+    def set_judge_settings(
+        self,
+        workspace_id: str,
+        *,
+        mode: str,
+        byok_key: str | None = None,
+        byok_base_url: str | None = None,
+        byok_model: str | None = None,
+    ) -> None:
+        with self._lock:
+            self._conn.execute(
+                """
+                UPDATE workspaces
+                SET judge_mode = ?,
+                    byok_key = COALESCE(?, byok_key),
+                    byok_base_url = COALESCE(?, byok_base_url),
+                    byok_model = COALESCE(?, byok_model)
+                WHERE id = ?
+                """,
+                (mode, byok_key, byok_base_url, byok_model, workspace_id),
+            )
+            self._conn.commit()
 
     def create_workspace(self, name: str) -> str:
         wid = str(uuid.uuid4())
         with self._lock:
             self._conn.execute(
-                "INSERT INTO workspaces (id, name, created_at) VALUES (?, ?, ?)",
-                (wid, name.strip() or "workspace", _now()),
+                "INSERT INTO workspaces (id, name, created_at, plan) VALUES (?, ?, ?, ?)",
+                (wid, name.strip() or "workspace", _now(), "free"),
             )
             self._conn.commit()
         return wid
@@ -342,15 +407,17 @@ class Store:
             ).fetchone()
         return dict(row) if row else None
 
-    def create_user(self, email: str, password_hash: str, workspace_id: str) -> str:
+    def create_user(
+        self, email: str, password_hash: str, workspace_id: str, role: str = "owner"
+    ) -> str:
         uid = str(uuid.uuid4())
         with self._lock:
             self._conn.execute(
                 """
-                INSERT INTO users (id, email, password_hash, workspace_id, created_at)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO users (id, email, password_hash, workspace_id, created_at, role)
+                VALUES (?, ?, ?, ?, ?, ?)
                 """,
-                (uid, normalize_email(email), password_hash, workspace_id, _now()),
+                (uid, normalize_email(email), password_hash, workspace_id, _now(), role),
             )
             self._conn.commit()
         return uid
@@ -370,6 +437,79 @@ class Store:
                 (user_id,),
             ).fetchone()
         return dict(row) if row else None
+
+    def list_users(self, workspace_id: str) -> list[dict[str, Any]]:
+        with self._lock:
+            rows = self._conn.execute(
+                """
+                SELECT id, email, role, created_at FROM users
+                WHERE workspace_id = ?
+                ORDER BY created_at
+                """,
+                (workspace_id,),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def count_users(self, workspace_id: str) -> int:
+        with self._lock:
+            n = self._conn.execute(
+                "SELECT COUNT(*) FROM users WHERE workspace_id = ?",
+                (workspace_id,),
+            ).fetchone()[0]
+        return int(n)
+
+    def set_user_role(self, workspace_id: str, user_id: str, role: str) -> bool:
+        with self._lock:
+            cur = self._conn.execute(
+                "UPDATE users SET role = ? WHERE id = ? AND workspace_id = ?",
+                (role, user_id, workspace_id),
+            )
+            self._conn.commit()
+            return cur.rowcount > 0
+
+    def count_ingests_since(self, workspace_id: str, since: str) -> int:
+        with self._lock:
+            n = self._conn.execute(
+                "SELECT COUNT(*) FROM ingests WHERE workspace_id = ? AND created_at >= ?",
+                (workspace_id, since),
+            ).fetchone()[0]
+        return int(n)
+
+    def count_diagnoses_since(self, workspace_id: str, since: str) -> int:
+        with self._lock:
+            n = self._conn.execute(
+                "SELECT COUNT(*) FROM diagnoses WHERE workspace_id = ? AND created_at >= ?",
+                (workspace_id, since),
+            ).fetchone()[0]
+        return int(n)
+
+    def add_usage(self, workspace_id: str, kind: str) -> None:
+        with self._lock:
+            self._conn.execute(
+                """
+                INSERT INTO usage_events (id, workspace_id, created_at, kind)
+                VALUES (?, ?, ?, ?)
+                """,
+                (str(uuid.uuid4()), workspace_id, _now(), kind),
+            )
+            self._conn.commit()
+
+    def count_usage(self, workspace_id: str, kind: str, since: str | None = None) -> int:
+        with self._lock:
+            if since:
+                n = self._conn.execute(
+                    """
+                    SELECT COUNT(*) FROM usage_events
+                    WHERE workspace_id = ? AND kind = ? AND created_at >= ?
+                    """,
+                    (workspace_id, kind, since),
+                ).fetchone()[0]
+            else:
+                n = self._conn.execute(
+                    "SELECT COUNT(*) FROM usage_events WHERE workspace_id = ? AND kind = ?",
+                    (workspace_id, kind),
+                ).fetchone()[0]
+        return int(n)
 
     def add_api_key(self, workspace_id: str) -> str:
         raw, digest, prefix = new_api_key()
@@ -393,7 +533,7 @@ class Store:
             ).fetchone()
         if not row:
             return None
-        return {"workspace_id": row["workspace_id"], "user_id": ""}
+        return {"workspace_id": row["workspace_id"], "user_id": "", "role": "admin"}
 
     def create_session(self, user_id: str, workspace_id: str, days: int = 7) -> str:
         raw, digest = new_session_token()
@@ -424,7 +564,9 @@ class Store:
             return None
         if str(row["expires_at"]) < now:
             return None
-        return {"user_id": row["user_id"], "workspace_id": row["workspace_id"]}
+        user = self.get_user(row["user_id"])
+        role = (user or {}).get("role") or "owner"
+        return {"user_id": row["user_id"], "workspace_id": row["workspace_id"], "role": str(role)}
 
     def delete_session(self, raw: str) -> None:
         digest = hash_token(raw)

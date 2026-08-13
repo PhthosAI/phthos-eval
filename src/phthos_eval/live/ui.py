@@ -125,6 +125,7 @@ AUTH_PAGE = """<!DOCTYPE html>
     <button type="button" id="signup">Create workspace</button>
     <p class="err" id="err"></p>
     <p class="sub">Self-host without accounts: run <code>phthos-eval live</code> (omit <code>--hosted</code>).</p>
+    <p class="sub"><a href="/sso/saml/login">Sign in with SSO (SAML)</a> — Pro cloud overlay.</p>
   </form>
   <script>
     const err = document.getElementById("err");
@@ -214,6 +215,9 @@ HOSTED_PAGE = """<!DOCTYPE html>
     <button type="button" data-tab="history">History</button>
     <button type="button" data-tab="datasets">Datasets</button>
     <button type="button" data-tab="alerts">Alerts</button>
+    <button type="button" data-tab="plan">Plan</button>
+    <button type="button" data-tab="team">Team</button>
+    <button type="button" data-tab="usage">Usage</button>
   </nav>
   <div class="stats" id="stats"></div>
   <div id="live" class="panel on">
@@ -260,6 +264,29 @@ HOSTED_PAGE = """<!DOCTYPE html>
     </form>
     <p class="sub">Fires when pass rate crosses below the threshold. Email needs SMTP on the host. Eval still does not apply a fix.</p>
     <pre id="alog"></pre>
+  </div>
+  <div id="plan" class="panel">
+    <p class="sub">Scorers and the diagnosis schema are free on every plan. Paid is ops: retention, SAML, hosted judges, seats.</p>
+    <pre id="planout"></pre>
+    <p><a href="/billing">Billing (cloud overlay)</a></p>
+  </div>
+  <div id="team" class="panel">
+    <form id="inv">
+      <label>Email <input name="email" type="email" required/></label>
+      <label>Password <input name="password" type="password" minlength="8" required/></label>
+      <label>Role
+        <select name="role">
+          <option value="viewer">viewer</option>
+          <option value="member" selected>member</option>
+          <option value="admin">admin</option>
+        </select>
+      </label>
+      <button type="submit">Invite</button>
+    </form>
+    <pre id="teamout"></pre>
+  </div>
+  <div id="usage" class="panel">
+    <pre id="usageout"></pre>
   </div>
   <script>
     let selected = null;
@@ -317,6 +344,12 @@ HOSTED_PAGE = """<!DOCTYPE html>
       f.alert_email.value = al.alert_email || "";
       f.min_pass_rate.value = al.min_pass_rate == null ? 0.8 : al.min_pass_rate;
       document.getElementById("alog").textContent = JSON.stringify(al.recent || [], null, 2);
+      const plan = await api("/v1/plan");
+      document.getElementById("planout").textContent = JSON.stringify(plan, null, 2);
+      const mem = await api("/v1/members");
+      document.getElementById("teamout").textContent = JSON.stringify(mem.members || [], null, 2);
+      const usage = await api("/v1/usage");
+      document.getElementById("usageout").textContent = JSON.stringify(usage, null, 2);
     }
     async function openRun(id) {
       selected = id;
@@ -358,6 +391,14 @@ HOSTED_PAGE = """<!DOCTYPE html>
       await api("/v1/alerts", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({
         webhook_url: fd.get("webhook_url"), alert_email: fd.get("alert_email"),
         min_pass_rate: Number(fd.get("min_pass_rate")),
+      })});
+      load();
+    };
+    document.getElementById("inv").onsubmit = async (e) => {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      await api("/v1/members", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({
+        email: fd.get("email"), password: fd.get("password"), role: fd.get("role"),
       })});
       load();
     };

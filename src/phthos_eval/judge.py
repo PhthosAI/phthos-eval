@@ -7,18 +7,25 @@ import urllib.request
 from typing import Any
 
 
-def maybe_judge(diagnosis: dict[str, Any]) -> dict[str, Any]:
+def maybe_judge(
+    diagnosis: dict[str, Any],
+    *,
+    api_key: str | None = None,
+    base_url: str | None = None,
+    model: str | None = None,
+) -> dict[str, Any]:
     """Optional LLM judge. No key → skipped. Never blocks deterministic diagnosis."""
-    key = os.environ.get("PHTHOS_EVAL_API_KEY") or os.environ.get("OPENAI_API_KEY")
+    key = api_key or os.environ.get("PHTHOS_EVAL_API_KEY") or os.environ.get("OPENAI_API_KEY")
     if not key:
         return {"skipped": True, "reason": "no_key", "score": None, "error": None}
 
     base = (
-        os.environ.get("PHTHOS_EVAL_JUDGE_BASE_URL")
+        base_url
+        or os.environ.get("PHTHOS_EVAL_JUDGE_BASE_URL")
         or os.environ.get("OPENAI_BASE_URL")
         or "https://api.openai.com/v1"
     ).rstrip("/")
-    model = os.environ.get("PHTHOS_EVAL_JUDGE_MODEL") or "gpt-4o-mini"
+    model = model or os.environ.get("PHTHOS_EVAL_JUDGE_MODEL") or "gpt-4o-mini"
     payload = {
         "model": model,
         "temperature": 0,

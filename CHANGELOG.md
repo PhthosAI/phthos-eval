@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.0 — 2026-08-13
+
+- Hosted **plans** (free / pro): longer retention, volume caps, seats, optional hosted judge, SAML hook. Deterministic scorers and diagnosis schema stay free. Self-host ignores plans.
+- RBAC: `owner` / `admin` / `member` / `viewer`. `GET /v1/usage`, `/v1/plan`, `/v1/members`.
+- Cloud overlay hooks: `POST /v1/ops/plan`, `POST /v1/sso/consume`. Hosted judge is metered when the operator sets `PHTHOS_EVAL_HOSTED_JUDGE_API_KEY` (BYOK still works). Catalog: [`docs/PLANS.md`](docs/PLANS.md).
+
 ## 0.4.0 — 2026-08-13
 
 - Optional **hosted mode** (`--hosted` / `PHTHOS_EVAL_HOSTED=1`): email sign-up, API keys, isolated tenants, datasets, score-drop alerts (webhook / SMTP), workspace export. Same engine and diagnosis schema as self-host. OSS `phthos-eval live` without the flag is unchanged (no accounts).
