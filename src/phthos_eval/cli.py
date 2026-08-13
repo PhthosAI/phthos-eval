@@ -10,6 +10,7 @@ from phthos_eval.finetune_export import labeled_trajectories
 from phthos_eval.live.config import LiveSettings, clamp_rate
 from phthos_eval.live.demo import run_demo
 from phthos_eval.live.server import serve
+from phthos_eval.gold import as_dataset, is_gold_pack, pack_to_dataset, validate_gold_pack
 from phthos_eval.runner import run_dataset, write_diagnosis
 from phthos_eval.schema import validate_diagnosis
 
@@ -67,9 +68,23 @@ def main(argv: list[str] | None = None) -> int:
     ft_p.add_argument("--diagnosis", required=True, type=Path)
     ft_p.add_argument("--out", "-o", type=Path, default=Path("finetune.json"))
 
+    gold_p = sub.add_parser("gold", help="Validate a gold pack, print hashes, or export a dataset")
+    gold_p.add_argument("--file", "-f", required=True, type=Path)
+    gold_p.add_argument(
+        "--dataset-out",
+        type=Path,
+        default=None,
+        help="Write an offline dataset exported from the gold pack",
+    )
+    gold_p.add_argument(
+        "--check-stale",
+        action="store_true",
+        help="Exit 2 if the pack file has stale: true (from GET /v1/gold)",
+    )
+
     args = parser.parse_args(argv)
     if args.cmd == "run":
-        dataset = json.loads(args.dataset.read_text(encoding="utf-8"))
+        dataset = as_dataset(json.loads(args.dataset.read_text(encoding="utf-8")))
         diagnosis = run_dataset(dataset)
         write_diagnosis(diagnosis, args.out)
         print(args.out)
@@ -120,6 +135,34 @@ def main(argv: list[str] | None = None) -> int:
         doc = labeled_trajectories(dataset, diagnosis)
         args.out.write_text(json.dumps(doc, indent=2) + "\n", encoding="utf-8")
         print(args.out)
+        return 0
+    if args.cmd == "gold":
+        doc = json.loads(args.file.read_text(encoding="utf-8"))
+        pack = doc.get("pack") if isinstance(doc.get("pack"), dict) else doc
+        errors = validate_gold_pack(pack)
+        if errors:
+            print("invalid:", file=sys.stderr)
+            for err in errors:
+                print(f"  {err}", file=sys.stderr)
+            return 1
+        if not is_gold_pack(pack):
+            print("invalid: not a gold pack", file=sys.stderr)
+            return 1
+        out = {
+            "ok": True,
+            "agent_id": pack.get("agent_id"),
+            "version": pack.get("version"),
+            "source_hashes": pack.get("source_hashes"),
+            "cases": len(pack.get("cases") or []),
+            "stale": bool(doc.get("stale")),
+        }
+        if args.dataset_out:
+            dataset = pack_to_dataset(pack)
+            args.dataset_out.write_text(json.dumps(dataset, indent=2) + "\n", encoding="utf-8")
+            out["dataset"] = str(args.dataset_out)
+        print(json.dumps(out, indent=2))
+        if args.check_stale and out["stale"]:
+            return 2
         return 0
     return run_demo(args.url, api_key=args.api_key)
 

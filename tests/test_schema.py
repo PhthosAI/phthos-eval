@@ -20,6 +20,12 @@ def test_root_schema_matches_package() -> None:
     assert root == pkg
 
 
+def test_gold_schema_matches_package() -> None:
+    root = (ROOT / "schema" / "gold.v1.json").read_text(encoding="utf-8")
+    pkg = (ROOT / "src" / "phthos_eval" / "data" / "gold.v1.json").read_text(encoding="utf-8")
+    assert root == pkg
+
+
 def test_validate_rejects_bad_change_class() -> None:
     errors = validate_diagnosis(
         {
@@ -49,6 +55,8 @@ def test_validate_rejects_bad_change_class() -> None:
             "change_class": "not-a-class",
             "evidence": [],
             "judge": {"skipped": True},
+            "gold_version": None,
+            "gold_stale": False,
         }
     )
     assert any("change_class" in e for e in errors)

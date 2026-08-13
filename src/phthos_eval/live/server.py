@@ -15,6 +15,7 @@ from urllib.parse import parse_qs, urlparse
 from phthos_eval.compare import compare_diagnoses
 from phthos_eval.constants import SCHEMA_VERSION
 from phthos_eval.finetune_export import labeled_trajectories
+from phthos_eval.gold import config_from_pack, pack_from_body, pack_to_dataset, source_hashes
 from phthos_eval.live.access import (
     AccessError,
     enforce_ingest_limit,
@@ -159,11 +160,15 @@ class LiveApp:
                     "cost": row["cost"],
                     "policy_hits": row["policy_hits"],
                     "agent_id": row.get("agent_id"),
+                    "gold_version": row.get("gold_version"),
+                    "gold_stale": bool(row.get("gold_stale")),
                 }
                 for row in self.store.recent(
                     limit, workspace_id, since=since, agent_id=agent_id
                 )
             ],
+            "gold": self.store.list_gold_stale(workspace_id),
+            "gold_stale": any(g["stale"] for g in self.store.list_gold_stale(workspace_id)),
         }
 
     def export(
@@ -194,6 +199,72 @@ class LiveApp:
             "diagnoses": self.store.list_diagnoses(workspace_id),
             "datasets": self.store.all_datasets(workspace_id),
         }
+
+    def put_gold(self, workspace_id: str, agent_id: str, body: dict[str, Any]) -> dict[str, Any]:
+        pack = pack_from_body(agent_id, body)
+        stored = self.store.put_gold_pack(workspace_id, pack)
+        return {"pack": stored, "stale": False}
+
+    def get_gold(self, workspace_id: str, agent_id: str) -> dict[str, Any] | None:
+        pack = self.store.active_gold(workspace_id, agent_id)
+        if not pack:
+            return None
+        stale = self.store.gold_stale(workspace_id, agent_id)
+        return {"pack": pack, "stale": stale, "version": pack.get("version"), "agent_id": agent_id}
+
+    def sync_gold(self, workspace_id: str, agent_id: str, body: dict[str, Any]) -> dict[str, Any]:
+        pack = self.store.active_gold(workspace_id, agent_id)
+        if not pack:
+            raise KeyError(agent_id)
+        hashes = source_hashes(
+            tool_schemas=body.get("tool_schemas") if isinstance(body.get("tool_schemas"), dict) else {},
+            policy=body.get("policy") if isinstance(body.get("policy"), dict) else {},
+            sop=body.get("sop") if body.get("sop") is not None else body.get("sop_clauses"),
+        )
+        stale = self.store.observe_gold_sources(workspace_id, agent_id, hashes)
+        return {
+            "agent_id": agent_id,
+            "version": pack.get("version"),
+            "stale": stale,
+            "source_hashes": pack.get("source_hashes"),
+            "observed": hashes,
+        }
+
+    def confirm_candidate(self, workspace_id: str, candidate_id: str) -> dict[str, Any]:
+        cand = self.store.get_candidate(workspace_id, candidate_id)
+        if not cand:
+            raise KeyError(candidate_id)
+        if cand["status"] != "pending":
+            raise ValueError("candidate is not pending")
+        agent_id = str(cand["agent_id"])
+        pack = self.store.active_gold(workspace_id, agent_id)
+        if not pack:
+            raise KeyError(agent_id)
+        cases = list(pack.get("cases") or [])
+        case = dict(cand["case"])
+        case_id = str(case.get("id") or cand["ingest_id"])
+        if any(str(c.get("id")) == case_id for c in cases):
+            self.store.set_candidate_status(workspace_id, candidate_id, "confirmed")
+            return {"ok": True, "pack": pack, "stale": self.store.gold_stale(workspace_id, agent_id)}
+        cases.append(case)
+        new_pack = pack_from_body(
+            agent_id,
+            {
+                **pack,
+                "cases": cases,
+                "sop_clauses": pack.get("sop_clauses"),
+            },
+        )
+        stored = self.store.put_gold_pack(workspace_id, new_pack, align_observed=False)
+        self.store.set_candidate_status(workspace_id, candidate_id, "confirmed")
+        return {"ok": True, "pack": stored, "stale": self.store.gold_stale(workspace_id, agent_id)}
+
+    def reject_candidate(self, workspace_id: str, candidate_id: str) -> dict[str, Any]:
+        cand = self.store.get_candidate(workspace_id, candidate_id)
+        if not cand:
+            raise KeyError(candidate_id)
+        self.store.set_candidate_status(workspace_id, candidate_id, "rejected")
+        return {"ok": True, "id": candidate_id, "status": "rejected"}
 
     def signup(self, payload: dict[str, Any]) -> tuple[dict[str, Any], str]:
         email = str(payload.get("email") or "")
@@ -449,16 +520,41 @@ class LiveApp:
                 else None
             )
             workspace_id = str(row.get("workspace_id") or LOCAL_WORKSPACE)
+            agent_id = str(row.get("agent_id") or "default")
+            pack = self.store.active_gold(workspace_id, agent_id)
+            stale = self.store.gold_stale(workspace_id, agent_id) if pack else False
+            config = config_from_pack(pack, self.config) if pack else self.config
+            if expected is None and config.get("default_expected_tools"):
+                expected = list(config["default_expected_tools"])
             judge_arg, source = self.judge_for(workspace_id)
             diagnosis = score_one_trace(
                 trace,
-                config=self.config,
+                config=config,
                 case_id=str(row.get("case_id") or ingest_id),
                 expected_tools=expected,
                 run_id=ingest_id,
                 judge=judge_arg,
+                gold_version=str(pack["version"]) if pack else None,
+                gold_stale=stale,
             )
             self.store.put_diagnosis(ingest_id, diagnosis)
+            cases = diagnosis.get("cases") or []
+            passed = bool(cases) and all(bool(c.get("passed")) for c in cases)
+            change_class = str(diagnosis.get("change_class") or "none")
+            if (not passed or change_class != "none") and row.get("sampled"):
+                case = {
+                    "id": str(row.get("case_id") or ingest_id),
+                    "traces": [trace],
+                }
+                if expected:
+                    case["expected_tools"] = expected
+                self.store.put_candidate(
+                    workspace_id,
+                    agent_id=agent_id,
+                    ingest_id=ingest_id,
+                    case=case,
+                    change_class=change_class,
+                )
             if source == "hosted":
                 self.store.add_usage(workspace_id, "hosted_judge")
             self._notify_diagnosis(workspace_id, diagnosis)
@@ -478,6 +574,8 @@ class LiveApp:
             "change_class": diagnosis.get("change_class"),
             "passed": bool(cases) and all(bool(c.get("passed")) for c in cases),
             "schema_version": diagnosis.get("schema_version") or SCHEMA_VERSION,
+            "gold_version": diagnosis.get("gold_version"),
+            "gold_stale": bool(diagnosis.get("gold_stale")),
             "scores": {
                 "task_success": (diagnosis.get("scores") or {}).get("task_success"),
             },
@@ -539,7 +637,8 @@ def make_handler(app: LiveApp) -> type[BaseHTTPRequestHandler]:
             self._begin(
                 204,
                 extra={
-                    "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Phthos-Key"
+                    "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Phthos-Key",
+                    "Access-Control-Allow-Methods": "GET, POST, PUT, OPTIONS",
                 },
             )
 
@@ -668,6 +767,40 @@ def make_handler(app: LiveApp) -> type[BaseHTTPRequestHandler]:
                 return
             if path == "/v1/export":
                 self._json(200, app.export_bundle(workspace_id))
+                return
+            if path.startswith("/v1/gold/"):
+                rest = path[len("/v1/gold/") :]
+                if rest.endswith("/candidates"):
+                    agent_id = rest[: -len("/candidates")].strip("/")
+                    qs = parse_qs(parsed.query)
+                    status = (qs.get("status") or ["pending"])[0]
+                    self._json(
+                        200,
+                        {
+                            "agent_id": agent_id,
+                            "candidates": app.store.list_candidates(
+                                workspace_id, agent_id, status=status
+                            ),
+                        },
+                    )
+                    return
+                if rest.endswith("/export"):
+                    agent_id = rest[: -len("/export")].strip("/")
+                    pack = app.store.active_gold(workspace_id, agent_id)
+                    if not pack:
+                        self._json(404, {"error": "not_found"})
+                        return
+                    self._json(200, pack_to_dataset(pack))
+                    return
+                agent_id = rest.strip("/")
+                if "/" in agent_id or not agent_id:
+                    self._json(404, {"error": "not_found"})
+                    return
+                body = app.get_gold(workspace_id, agent_id)
+                if not body:
+                    self._json(404, {"error": "not_found"})
+                    return
+                self._json(200, body)
                 return
             if path == "/v1/diagnoses":
                 qs = parse_qs(parsed.query)
@@ -960,7 +1093,103 @@ def make_handler(app: LiveApp) -> type[BaseHTTPRequestHandler]:
                 )
                 self._json(200, {"ok": True, "mode": mode})
                 return
+            if path.startswith("/v1/gold/candidates/") and path.endswith("/confirm"):
+                try:
+                    require_role(ident, "admin")
+                except AccessError as exc:
+                    self._json(exc.status, exc.body())
+                    return
+                if str(payload.get("source") or "").strip().lower() == "judge":
+                    self._json(400, {"error": "judge_cannot_confirm"})
+                    return
+                cid = path[len("/v1/gold/candidates/") : -len("/confirm")].strip("/")
+                try:
+                    body = app.confirm_candidate(workspace_id, cid)
+                except KeyError:
+                    self._json(404, {"error": "not_found"})
+                    return
+                except ValueError as exc:
+                    self._json(400, {"error": str(exc)})
+                    return
+                self._json(200, body)
+                return
+            if path.startswith("/v1/gold/candidates/") and path.endswith("/reject"):
+                try:
+                    require_role(ident, "admin")
+                except AccessError as exc:
+                    self._json(exc.status, exc.body())
+                    return
+                cid = path[len("/v1/gold/candidates/") : -len("/reject")].strip("/")
+                try:
+                    body = app.reject_candidate(workspace_id, cid)
+                except KeyError:
+                    self._json(404, {"error": "not_found"})
+                    return
+                self._json(200, body)
+                return
+            if path.startswith("/v1/gold/") and path.endswith("/sync"):
+                try:
+                    require_role(ident, "admin")
+                except AccessError as exc:
+                    self._json(exc.status, exc.body())
+                    return
+                agent_id = path[len("/v1/gold/") : -len("/sync")].strip("/")
+                try:
+                    body = app.sync_gold(workspace_id, agent_id, payload)
+                except KeyError:
+                    self._json(404, {"error": "not_found"})
+                    return
+                self._json(200, body)
+                return
+            if path.startswith("/v1/gold/"):
+                try:
+                    require_role(ident, "admin")
+                except AccessError as exc:
+                    self._json(exc.status, exc.body())
+                    return
+                agent_id = path[len("/v1/gold/") :].strip("/")
+                if not agent_id or "/" in agent_id:
+                    self._json(404, {"error": "not_found"})
+                    return
+                try:
+                    body = app.put_gold(workspace_id, agent_id, payload)
+                except ValueError as exc:
+                    self._json(400, {"error": str(exc)})
+                    return
+                self._json(201, body)
+                return
             self._json(404, {"error": "not_found"})
+
+        def do_PUT(self) -> None:
+            parsed = urlparse(self.path)
+            path = parsed.path.rstrip("/") or "/"
+            try:
+                payload = self._read_json()
+            except (ValueError, TypeError) as exc:
+                self._json(400, {"error": str(exc)})
+                return
+            workspace_id = self._need_workspace()
+            if workspace_id is None:
+                return
+            ident = self._identity() or {"role": "owner", "via": "local"}
+            if path.startswith("/v1/gold/"):
+                try:
+                    require_role(ident, "admin")
+                except AccessError as exc:
+                    self._json(exc.status, exc.body())
+                    return
+                agent_id = path[len("/v1/gold/") :].strip("/")
+                if not agent_id or "/" in agent_id:
+                    self._json(404, {"error": "not_found"})
+                    return
+                try:
+                    body = app.put_gold(workspace_id, agent_id, payload)
+                except ValueError as exc:
+                    self._json(400, {"error": str(exc)})
+                    return
+                self._json(201, body)
+                return
+            self._json(405, {"error": "method_not_allowed"})
 
         def _identity(self) -> dict[str, str] | None:
             return identity_from_headers(
@@ -1026,7 +1255,7 @@ def make_handler(app: LiveApp) -> type[BaseHTTPRequestHandler]:
             self.send_response(status)
             self.send_header("Content-Type", content_type)
             self.send_header("Access-Control-Allow-Origin", "*")
-            self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+            self.send_header("Access-Control-Allow-Methods", "GET, POST, PUT, OPTIONS")
             for key, value in (extra or {}).items():
                 self.send_header(key, value)
             self.end_headers()

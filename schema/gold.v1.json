@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://phthos.ai/eval/schema/gold/v1",
+  "title": "Phthos Eval gold pack",
+  "description": "Versioned business contract for an agent: tool schemas, policy, SOP hash, and confirmed cases. Not a chat dataset. Confirming a live candidate is required before a case is added.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "agent_id",
+    "version",
+    "created_at",
+    "tool_schemas",
+    "policy",
+    "budget",
+    "sop_hash",
+    "source_hashes",
+    "cases"
+  ],
+  "properties": {
+    "schema_version": { "type": "string", "const": "1" },
+    "agent_id": { "type": "string", "minLength": 1 },
+    "version": { "type": "string", "minLength": 1 },
+    "created_at": { "type": "string", "minLength": 1 },
+    "tool_schemas": { "type": "object" },
+    "policy": { "type": "object" },
+    "budget": { "type": "object" },
+    "sop_hash": { "type": "string" },
+    "sop_clauses": { "type": ["string", "array", "object", "null"] },
+    "default_expected_tools": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "source_hashes": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tools", "policy", "sop"],
+      "properties": {
+        "tools": { "type": "string" },
+        "policy": { "type": "string" },
+        "sop": { "type": "string" }
+      }
+    },
+    "cases": {
+      "type": "array",
+      "items": { "type": "object" }
+    }
+  }
+}

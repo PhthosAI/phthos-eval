@@ -135,6 +135,45 @@ class Store:
                 "CREATE INDEX IF NOT EXISTS idx_diagnoses_ws ON diagnoses(workspace_id, created_at)"
             )
             self._ensure_local_workspace()
+            self._conn.executescript(
+                """
+                CREATE TABLE IF NOT EXISTS gold_packs (
+                  id TEXT PRIMARY KEY,
+                  workspace_id TEXT NOT NULL,
+                  agent_id TEXT NOT NULL,
+                  version TEXT NOT NULL,
+                  created_at TEXT NOT NULL,
+                  active INTEGER NOT NULL,
+                  pack_json TEXT NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS gold_observed (
+                  workspace_id TEXT NOT NULL,
+                  agent_id TEXT NOT NULL,
+                  tools_hash TEXT,
+                  policy_hash TEXT,
+                  sop_hash TEXT,
+                  updated_at TEXT NOT NULL,
+                  PRIMARY KEY (workspace_id, agent_id)
+                );
+                CREATE TABLE IF NOT EXISTS gold_candidates (
+                  id TEXT PRIMARY KEY,
+                  workspace_id TEXT NOT NULL,
+                  agent_id TEXT NOT NULL,
+                  ingest_id TEXT NOT NULL,
+                  status TEXT NOT NULL,
+                  created_at TEXT NOT NULL,
+                  case_json TEXT NOT NULL,
+                  change_class TEXT,
+                  UNIQUE (workspace_id, ingest_id)
+                );
+                CREATE INDEX IF NOT EXISTS idx_gold_packs_agent
+                  ON gold_packs(workspace_id, agent_id, active);
+                CREATE INDEX IF NOT EXISTS idx_gold_cand
+                  ON gold_candidates(workspace_id, agent_id, status);
+                """
+            )
+            _ensure_column(self._conn, "diagnoses", "gold_version", "TEXT")
+            _ensure_column(self._conn, "diagnoses", "gold_stale", "INTEGER NOT NULL DEFAULT 0")
             self._conn.commit()
 
     def _ensure_local_workspace(self) -> None:
@@ -207,8 +246,8 @@ class Store:
                 """
                 INSERT OR REPLACE INTO diagnoses (
                   id, ingest_id, created_at, passed, change_class, cost,
-                  policy_hits, diagnosis_json, workspace_id
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                  policy_hits, diagnosis_json, workspace_id, gold_version, gold_stale
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     diagnosis.get("run_id") or ingest_id,
@@ -220,6 +259,8 @@ class Store:
                     scores.get("policy_hits"),
                     json.dumps(diagnosis),
                     workspace_id,
+                    diagnosis.get("gold_version"),
+                    int(bool(diagnosis.get("gold_stale"))),
                 ),
             )
             self._conn.execute(
@@ -303,7 +344,7 @@ class Store:
         args.append(limit)
         sql = f"""
                 SELECT d.id, d.created_at, d.passed, d.change_class, d.cost, d.policy_hits,
-                       i.agent_id
+                       i.agent_id, d.gold_version, d.gold_stale
                 FROM diagnoses d
                 LEFT JOIN ingests i ON i.id = d.ingest_id
                 WHERE {' AND '.join(where)}
@@ -744,3 +785,237 @@ class Store:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(dataset, indent=2) + "\n", encoding="utf-8")
         return {"path": str(path), "case_id": case_id, "cases": len(cases)}
+
+    def put_gold_pack(
+        self,
+        workspace_id: str,
+        pack: dict[str, Any],
+        *,
+        align_observed: bool = True,
+    ) -> dict[str, Any]:
+        agent_id = str(pack["agent_id"])
+        row_id = str(uuid.uuid4())
+        with self._lock:
+            self._conn.execute(
+                "UPDATE gold_packs SET active = 0 WHERE workspace_id = ? AND agent_id = ?",
+                (workspace_id, agent_id),
+            )
+            self._conn.execute(
+                """
+                INSERT INTO gold_packs (
+                  id, workspace_id, agent_id, version, created_at, active, pack_json
+                ) VALUES (?, ?, ?, ?, ?, 1, ?)
+                """,
+                (
+                    row_id,
+                    workspace_id,
+                    agent_id,
+                    pack["version"],
+                    pack["created_at"],
+                    json.dumps(pack),
+                ),
+            )
+            if align_observed:
+                hashes = pack.get("source_hashes") or {}
+                self._conn.execute(
+                    """
+                    INSERT INTO gold_observed (
+                      workspace_id, agent_id, tools_hash, policy_hash, sop_hash, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(workspace_id, agent_id) DO UPDATE SET
+                      tools_hash = excluded.tools_hash,
+                      policy_hash = excluded.policy_hash,
+                      sop_hash = excluded.sop_hash,
+                      updated_at = excluded.updated_at
+                    """,
+                    (
+                        workspace_id,
+                        agent_id,
+                        hashes.get("tools"),
+                        hashes.get("policy"),
+                        hashes.get("sop"),
+                        _now(),
+                    ),
+                )
+            self._conn.commit()
+        return pack
+
+    def active_gold(self, workspace_id: str, agent_id: str) -> dict[str, Any] | None:
+        with self._lock:
+            row = self._conn.execute(
+                """
+                SELECT pack_json FROM gold_packs
+                WHERE workspace_id = ? AND agent_id = ? AND active = 1
+                """,
+                (workspace_id, agent_id),
+            ).fetchone()
+        if not row:
+            return None
+        return json.loads(row["pack_json"])
+
+    def gold_stale(self, workspace_id: str, agent_id: str) -> bool:
+        pack = self.active_gold(workspace_id, agent_id)
+        if not pack:
+            return False
+        hashes = pack.get("source_hashes") or {}
+        with self._lock:
+            row = self._conn.execute(
+                """
+                SELECT tools_hash, policy_hash, sop_hash FROM gold_observed
+                WHERE workspace_id = ? AND agent_id = ?
+                """,
+                (workspace_id, agent_id),
+            ).fetchone()
+        if not row:
+            return False
+        return (
+            str(row["tools_hash"] or "") != str(hashes.get("tools") or "")
+            or str(row["policy_hash"] or "") != str(hashes.get("policy") or "")
+            or str(row["sop_hash"] or "") != str(hashes.get("sop") or "")
+        )
+
+    def observe_gold_sources(
+        self,
+        workspace_id: str,
+        agent_id: str,
+        hashes: dict[str, str],
+    ) -> bool:
+        """Record currently observed hashes. Returns True if that makes gold stale."""
+        with self._lock:
+            self._conn.execute(
+                """
+                INSERT INTO gold_observed (
+                  workspace_id, agent_id, tools_hash, policy_hash, sop_hash, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?)
+                ON CONFLICT(workspace_id, agent_id) DO UPDATE SET
+                  tools_hash = excluded.tools_hash,
+                  policy_hash = excluded.policy_hash,
+                  sop_hash = excluded.sop_hash,
+                  updated_at = excluded.updated_at
+                """,
+                (
+                    workspace_id,
+                    agent_id,
+                    hashes.get("tools"),
+                    hashes.get("policy"),
+                    hashes.get("sop"),
+                    _now(),
+                ),
+            )
+            self._conn.commit()
+        return self.gold_stale(workspace_id, agent_id)
+
+    def list_gold_stale(self, workspace_id: str) -> list[dict[str, Any]]:
+        with self._lock:
+            rows = self._conn.execute(
+                """
+                SELECT agent_id, version, pack_json FROM gold_packs
+                WHERE workspace_id = ? AND active = 1
+                """,
+                (workspace_id,),
+            ).fetchall()
+        out = []
+        for row in rows:
+            agent_id = str(row["agent_id"])
+            stale = self.gold_stale(workspace_id, agent_id)
+            out.append(
+                {
+                    "agent_id": agent_id,
+                    "version": row["version"],
+                    "stale": stale,
+                }
+            )
+        return out
+
+    def put_candidate(
+        self,
+        workspace_id: str,
+        *,
+        agent_id: str,
+        ingest_id: str,
+        case: dict[str, Any],
+        change_class: str | None,
+    ) -> str | None:
+        cid = str(uuid.uuid4())
+        with self._lock:
+            existing = self._conn.execute(
+                """
+                SELECT id FROM gold_candidates
+                WHERE workspace_id = ? AND ingest_id = ?
+                """,
+                (workspace_id, ingest_id),
+            ).fetchone()
+            if existing:
+                return None
+            self._conn.execute(
+                """
+                INSERT INTO gold_candidates (
+                  id, workspace_id, agent_id, ingest_id, status, created_at,
+                  case_json, change_class
+                ) VALUES (?, ?, ?, ?, 'pending', ?, ?, ?)
+                """,
+                (
+                    cid,
+                    workspace_id,
+                    agent_id,
+                    ingest_id,
+                    _now(),
+                    json.dumps(case),
+                    change_class,
+                ),
+            )
+            self._conn.commit()
+        return cid
+
+    def list_candidates(
+        self,
+        workspace_id: str,
+        agent_id: str,
+        *,
+        status: str = "pending",
+    ) -> list[dict[str, Any]]:
+        with self._lock:
+            rows = self._conn.execute(
+                """
+                SELECT id, agent_id, ingest_id, status, created_at, case_json, change_class
+                FROM gold_candidates
+                WHERE workspace_id = ? AND agent_id = ? AND status = ?
+                ORDER BY created_at DESC
+                """,
+                (workspace_id, agent_id, status),
+            ).fetchall()
+        out = []
+        for row in rows:
+            item = dict(row)
+            item["case"] = json.loads(item.pop("case_json"))
+            out.append(item)
+        return out
+
+    def get_candidate(self, workspace_id: str, candidate_id: str) -> dict[str, Any] | None:
+        with self._lock:
+            row = self._conn.execute(
+                """
+                SELECT id, agent_id, ingest_id, status, created_at, case_json, change_class
+                FROM gold_candidates
+                WHERE id = ? AND workspace_id = ?
+                """,
+                (candidate_id, workspace_id),
+            ).fetchone()
+        if not row:
+            return None
+        item = dict(row)
+        item["case"] = json.loads(item.pop("case_json"))
+        return item
+
+    def set_candidate_status(self, workspace_id: str, candidate_id: str, status: str) -> bool:
+        with self._lock:
+            cur = self._conn.execute(
+                """
+                UPDATE gold_candidates SET status = ?
+                WHERE id = ? AND workspace_id = ?
+                """,
+                (status, candidate_id, workspace_id),
+            )
+            self._conn.commit()
+            return cur.rowcount > 0
+

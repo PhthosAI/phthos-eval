@@ -224,6 +224,33 @@ class LiveClient:
     def ingest_otlp(self, payload: dict[str, Any]) -> dict[str, Any]:
         return self._json("POST", "v1/otel/traces", payload)
 
+    def put_gold(self, agent_id: str, pack: dict[str, Any]) -> dict[str, Any]:
+        return self._json("PUT", f"v1/gold/{agent_id}", pack)
+
+    def gold(self, agent_id: str) -> dict[str, Any]:
+        return self._json("GET", f"v1/gold/{agent_id}")
+
+    def sync_gold(self, agent_id: str, body: dict[str, Any]) -> dict[str, Any]:
+        return self._json("POST", f"v1/gold/{agent_id}/sync", body)
+
+    def gold_candidates(self, agent_id: str, *, status: str = "pending") -> dict[str, Any]:
+        return self._json(
+            "GET",
+            f"v1/gold/{agent_id}/candidates" + self._qs(status=status),
+        )
+
+    def confirm_candidate(self, candidate_id: str, *, source: str | None = None) -> dict[str, Any]:
+        body: dict[str, Any] = {}
+        if source:
+            body["source"] = source
+        return self._json("POST", f"v1/gold/candidates/{candidate_id}/confirm", body)
+
+    def reject_candidate(self, candidate_id: str) -> dict[str, Any]:
+        return self._json("POST", f"v1/gold/candidates/{candidate_id}/reject", {})
+
+    def export_gold(self, agent_id: str) -> dict[str, Any]:
+        return self._json("GET", f"v1/gold/{agent_id}/export")
+
     def export(self, run_id: str, path: str | None = None) -> dict[str, Any]:
         body: dict[str, Any] = {}
         if path:

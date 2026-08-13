@@ -7,7 +7,8 @@ Applies to **self-host** (`phthos-eval live`) and **hosted mode** (`--hosted` / 
 | Data | Why | Where |
 |------|-----|--------|
 | Sampled traces (span JSON) | Score with the same offline scorers | SQLite `ingests` |
-| Diagnosis JSON (schema 0.2.0) | Dashboard, export, CI | SQLite `diagnoses` |
+| Diagnosis JSON (schema 0.3.0) | Dashboard, export, CI | SQLite `diagnoses` |
+| Gold packs + candidates | Versioned contract; pending live fails | SQLite `gold_packs`, `gold_observed`, `gold_candidates` |
 | Offline datasets you upload | Run the same `run_dataset` path | SQLite `datasets` (hosted) |
 | Email + password hash | Sign-up / login (hosted only) | SQLite `users` (PBKDF2) |
 | API key hashes | Ingest / CI (hosted only) | SQLite `api_keys` (SHA-256 of `pk_…`) |

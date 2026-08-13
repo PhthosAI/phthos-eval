@@ -8,6 +8,7 @@ from phthos_eval.constants import (
     SCHEMA_VERSION,
 )
 from phthos_eval.finetune_export import labeled_trajectories
+from phthos_eval.gold import as_dataset, build_pack, pack_to_dataset, validate_gold_pack
 from phthos_eval.runner import run_dataset, write_diagnosis
 from phthos_eval.schema import load_schema, schema_file, validate_diagnosis
 from phthos_eval.scorers import (
@@ -39,6 +40,10 @@ __all__ = [
     "FAILURE_TO_CHANGE_CLASS",
     "FAILURE_TYPES",
     "SCHEMA_VERSION",
+    "as_dataset",
+    "build_pack",
+    "pack_to_dataset",
+    "validate_gold_pack",
     "BudgetScorer",
     "CaseResult",
     "ChangeClass",

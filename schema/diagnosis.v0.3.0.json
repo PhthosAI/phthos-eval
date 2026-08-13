@@ -1,0 +1,159 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://phthos.ai/eval/schema/diagnosis/v0.3.0",
+  "title": "Phthos Eval Diagnosis",
+  "description": "One artifact per offline or live eval run. Profile is AgentSLABench-style (success, cost-per-task, p95 latency, steps, policy) plus pass@N / pass^N. gold_version binds the run to a living gold pack. This product does not apply the fix.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "run_id",
+    "dataset_id",
+    "n_runs",
+    "scores",
+    "failures",
+    "change_class",
+    "evidence",
+    "judge",
+    "gold_version",
+    "gold_stale"
+  ],
+  "properties": {
+    "schema_version": { "type": "string", "const": "0.3.0" },
+    "run_id": { "type": "string", "minLength": 1 },
+    "dataset_id": { "type": "string", "minLength": 1 },
+    "n_runs": { "type": "integer", "minimum": 1 },
+    "gold_version": {
+      "type": ["string", "null"],
+      "description": "Active gold pack version used to score, or null if none."
+    },
+    "gold_stale": {
+      "type": "boolean",
+      "description": "True when observed tool/policy/SOP hashes differ from the pack used to score."
+    },
+    "scores": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "task_success",
+        "n_run_reliability",
+        "pass_at_n",
+        "cost",
+        "cost_mean",
+        "latency_ms",
+        "latency_mean_ms",
+        "latency_p50_ms",
+        "latency_p95_ms",
+        "steps",
+        "steps_mean",
+        "tokens",
+        "policy_hits",
+        "wrong_tool_hits",
+        "budget_hits",
+        "loop_hits"
+      ],
+      "properties": {
+        "task_success": {
+          "type": ["number", "null"],
+          "minimum": 0,
+          "maximum": 1,
+          "description": "pass^N: share of cases where every repeat passed."
+        },
+        "n_run_reliability": {
+          "type": ["number", "null"],
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Mean over cases of (passing traces / n_runs). Not the same as task_success."
+        },
+        "pass_at_n": {
+          "type": ["number", "null"],
+          "minimum": 0,
+          "maximum": 1,
+          "description": "pass@N: share of cases with at least one passing repeat."
+        },
+        "cost": { "type": ["number", "null"], "minimum": 0, "description": "Total USD across scored traces." },
+        "cost_mean": { "type": ["number", "null"], "minimum": 0, "description": "USD per trace (cost-per-task)." },
+        "latency_ms": { "type": ["number", "null"], "minimum": 0, "description": "Sum of per-trace latency." },
+        "latency_mean_ms": { "type": ["number", "null"], "minimum": 0 },
+        "latency_p50_ms": { "type": ["number", "null"], "minimum": 0 },
+        "latency_p95_ms": { "type": ["number", "null"], "minimum": 0, "description": "SLA tail of per-trace latency." },
+        "steps": { "type": ["integer", "null"], "minimum": 0, "description": "Total tool-call spans." },
+        "steps_mean": { "type": ["number", "null"], "minimum": 0 },
+        "tokens": { "type": ["number", "null"], "minimum": 0, "description": "Sum of span tokens if logged; else null." },
+        "policy_hits": { "type": ["integer", "null"], "minimum": 0 },
+        "wrong_tool_hits": { "type": ["integer", "null"], "minimum": 0 },
+        "budget_hits": { "type": ["integer", "null"], "minimum": 0 },
+        "loop_hits": { "type": ["integer", "null"], "minimum": 0 }
+      }
+    },
+    "failures": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/failure" }
+    },
+    "change_class": {
+      "type": "string",
+      "enum": ["prompt", "tool", "policy", "model", "finetune_data", "none"]
+    },
+    "evidence": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/pointer" }
+    },
+    "judge": { "$ref": "#/$defs/judge" },
+    "cases": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["case_id", "passed", "failures"],
+        "properties": {
+          "case_id": { "type": "string" },
+          "passed": { "type": "boolean" },
+          "pass_rate": { "type": "number", "minimum": 0, "maximum": 1 },
+          "cost": { "type": "number", "minimum": 0 },
+          "latency_ms": { "type": "number", "minimum": 0 },
+          "steps": { "type": "integer", "minimum": 0 },
+          "failures": {
+            "type": "array",
+            "items": { "$ref": "#/$defs/failure" }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "pointer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["span_id"],
+      "properties": {
+        "span_id": { "type": "string" },
+        "step_id": { "type": ["string", "null"] },
+        "case_id": { "type": ["string", "null"] },
+        "trace_index": { "type": ["integer", "null"] }
+      }
+    },
+    "failure": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "span_id", "evidence"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["wrong_tool", "loop", "budget", "policy"]
+        },
+        "span_id": { "type": "string" },
+        "evidence": { "$ref": "#/$defs/pointer" }
+      }
+    },
+    "judge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["skipped"],
+      "properties": {
+        "skipped": { "type": "boolean" },
+        "reason": { "type": ["string", "null"] },
+        "score": { "type": ["number", "null"] },
+        "error": { "type": ["string", "null"] }
+      }
+    }
+  }
+}

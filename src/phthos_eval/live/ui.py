@@ -64,6 +64,7 @@ PAGE = """<!DOCTYPE html>
         ["Sampled / received", (s.sampled || 0) + " / " + (s.received || 0)],
         ["Sample rate", Math.round((s.sample_rate || 0) * 100) + "%"],
         ["Judge", s.judge || "off"],
+        ["Gold", s.gold_stale ? "stale" : "current"],
       ].map(([k,v]) => `<div class="stat"><b>${v}</b><span>${k}</span></div>`).join("");
       const tb = document.getElementById("rows");
       tb.innerHTML = (s.runs || []).map(r =>
@@ -319,6 +320,7 @@ HOSTED_PAGE = """<!DOCTYPE html>
         ["Sampled / received", (s.sampled || 0) + " / " + (s.received || 0)],
         ["Sample rate", Math.round((s.sample_rate || 0) * 100) + "%"],
         ["Judge", s.judge || "off"],
+        ["Gold", s.gold_stale ? "stale" : "current"],
       ].map(([k,v]) => `<div class="stat"><b>${v}</b><span>${k}</span></div>`).join("");
       const tb = document.getElementById("rows");
       tb.innerHTML = (s.runs || []).map(r =>
