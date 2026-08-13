@@ -4,9 +4,7 @@ Score an **agent run**, not a chat reply.
 
 An agent can answer fluently and still call the wrong tool, loop, blow the budget, or break policy. Phthos Eval reads recorded traces (LLM steps + tool calls) and writes a **diagnosis JSON** you can gate CI on or hand to another system. It does **not** rewrite prompts, open PRs, or fine-tune.
 
-<p align="center">
-  <img src="docs/diagrams/overview.svg" alt="Your agent emits traces; Phthos Eval scores them into diagnosis JSON for CI or a later improver. This package does not apply the fix." width="880">
-</p>
+![How Phthos Eval works](docs/diagrams/overview.svg)
 
 Python 3.11+. Install from PyPI:
 
@@ -41,13 +39,32 @@ flowchart LR
 
 Optional: an LLM **judge** using **your** key. Without a key, everything above still runs.
 
-<p align="center">
-  <img src="docs/diagrams/offline-live.svg" alt="Offline CI datasets and sampled live traces both hit the same scorers and the same diagnosis schema." width="880">
-</p>
+![Offline and live use the same scorers](docs/diagrams/offline-live.svg)
 
-<p align="center">
-  <img src="docs/diagrams/diagnosis.svg" alt="Diagnosis JSON: scores, typed failures with span ids, and a change_class hint. Schema 0.1.0." width="880">
-</p>
+![Diagnosis JSON: scores, typed failures, change_class](docs/diagrams/diagnosis.svg)
+
+### Sample scores (bundled fixture)
+
+`python -m phthos_eval run -d fixtures/dataset.json` — 5 cases, 2 runs each. One case is clean; the others are seeded failures.
+
+| Metric | Value | What that means on this suite |
+|--------|------:|-------------------------------|
+| `task_success` | 0.20 | 1 of 5 cases passed **both** runs |
+| `n_run_reliability` | 0.20 | Same as task success in this version |
+| `cost` | 1.71 | USD summed across scored traces |
+| `latency_ms` | 8593 | Summed span latency |
+| `policy_hits` | 2 | Deny-list hits (`send_money`) |
+| `change_class` | `policy` | Highest-priority hint (policy before tool/budget/loop) |
+
+| Case | Passed | What fired |
+|------|:------:|------------|
+| `pass-search` | yes | — |
+| `fail-wrong-tool` | no | `wrong_tool` |
+| `fail-budget` | no | `budget` |
+| `fail-policy` | no | `policy` (and `wrong_tool`: denied tool is not in the allow-list) |
+| `fail-loop` | no | `loop` |
+
+Support-agent dogfood (`examples/support_agent/dataset.json`): `task_success` **0.50**, `cost` **0.008**, `policy_hits` **2**, `change_class` **policy**. `status-ok` passes; `refund-denied` fails.
 
 ---
 
@@ -117,9 +134,7 @@ python -m phthos_eval run -d examples/support_agent/dataset.json -o diagnosis.js
 
 Same scorers as offline, on a **sampled** production stream. You run the process; data stays on your machine. This is not a hosted SaaS and not a LangSmith clone.
 
-<p align="center">
-  <img src="docs/diagrams/live.svg" alt="Live ingest returns immediately, samples about 5 percent, scores async, then shows pass rate, cost, and policy hits. No prompt editor." width="880">
-</p>
+![Live ingest samples then scores async](docs/diagrams/live.svg)
 
 ```mermaid
 sequenceDiagram
@@ -283,15 +298,15 @@ Tool spans: `name`, `args`, optional `cost_usd`, `latency_ms`.
 
 ## Metrics (what they mean)
 
-These are on the **whole suite** in `diagnosis.json` → `scores`:
+These are on the **whole suite** in `diagnosis.json` → `scores`. Numbers in **Example** are from `fixtures/dataset.json` (table above).
 
-| Metric | Range | Why it matters |
-|--------|--------|----------------|
-| `task_success` | 0–1 | Share of cases where **every** N-run passed. A pretty last message does not count. |
-| `n_run_reliability` | 0–1 | Same as `task_success` in this version: did the case pass on all repeats? Single-run “90%” is often luck. |
-| `cost` | USD (sum) | Token/tool spend across scored traces. A correct 40-call run can still be a failed product. |
-| `latency_ms` | ms (sum) | Time in the recorded spans. Useful for p95-style budgets later; here it is the total you logged. |
-| `policy_hits` | count | How many deny-list (or custom policy) failures fired. Safety/compliance, not “quality vibe”. |
+| Metric | Range | Example | Why it matters |
+|--------|--------|--------:|----------------|
+| `task_success` | 0–1 | 0.20 | Share of cases where **every** N-run passed. A pretty last message does not count. |
+| `n_run_reliability` | 0–1 | 0.20 | Same as `task_success` in this version: did the case pass on all repeats? Single-run “90%” is often luck. |
+| `cost` | USD (sum) | 1.71 | Token/tool spend across scored traces. A correct 40-call run can still be a failed product. |
+| `latency_ms` | ms (sum) | 8593 | Time in the recorded spans. Useful for p95-style budgets later; here it is the total you logged. |
+| `policy_hits` | count | 2 | How many deny-list (or custom policy) failures fired. Safety/compliance, not “quality vibe”. |
 
 `judge.score` (0–1) appears only if you set a judge key. Treat it as extra signal, not the verdict. Deterministic failures are the source of truth.
 
