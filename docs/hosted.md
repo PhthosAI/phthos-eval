@@ -2,7 +2,7 @@
 
 Same live engine as [self-host](../examples/live/README.md). We (or you) set `PHTHOS_EVAL_HOSTED=1` / `--hosted` and expose a URL. **OSS self-host is unchanged** if you omit that flag.
 
-This is not a rewrite, not Stripe (phase 5), not SAML, not a hosted judge we meter.
+Stripe, SAML ACS, and billing UI are the **cloud overlay** (`phthos-eval-cloud`), not this package. The engine has plan/RBAC/SSO hooks: [`PLANS.md`](PLANS.md).
 
 ## Run it
 
@@ -21,7 +21,9 @@ Open the URL → sign up. Copy the API key (shown once).
 | `PHTHOS_EVAL_ALERT_MIN_PASS_RATE` | Default `0.8` until the workspace overrides it |
 | `PHTHOS_EVAL_SMTP_HOST` / `PORT` / `USER` / `PASSWORD` / `FROM` | Email alerts (optional) |
 | `PHTHOS_EVAL_PUBLIC_URL` | `https://…` so session cookies get `Secure` |
-| Judge keys | Still **your** key, still off unless `--live-judge` |
+| `PHTHOS_EVAL_OPS_SECRET` | `X-Phthos-Ops` to set workspace plan |
+| `PHTHOS_EVAL_SSO_SECRET` | HMAC for `POST /v1/sso/consume` |
+| `PHTHOS_EVAL_HOSTED_JUDGE_API_KEY` | Our key for Pro hosted-judge (metered). Unset on OSS. |
 
 ## Auth
 

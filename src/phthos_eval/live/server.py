@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+import hmac
 import json
 import sqlite3
 import threading
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from queue import Empty, Queue
@@ -12,6 +13,13 @@ from typing import Any
 from urllib.parse import parse_qs, urlparse
 
 from phthos_eval.constants import SCHEMA_VERSION
+from phthos_eval.live.access import (
+    AccessError,
+    enforce_ingest_limit,
+    enforce_score_limit,
+    enforce_seat_limit,
+    require_role,
+)
 from phthos_eval.live.alerts import fire_score_drop
 from phthos_eval.live.auth import (
     COOKIE_NAME,
@@ -23,12 +31,14 @@ from phthos_eval.live.auth import (
     session_cookie,
     valid_email,
     verify_password,
+    verify_sso,
 )
 from phthos_eval.live.config import LiveSettings, should_sample
 from phthos_eval.live.otel import is_otlp, otlp_to_traces
 from phthos_eval.live.score import score_one_trace
 from phthos_eval.live.store import Store
 from phthos_eval.live.ui import AUTH_PAGE, HOSTED_PAGE, PAGE
+from phthos_eval.plans import PLANS, ROLES, plan_of, public_catalog
 from phthos_eval.runner import run_dataset
 
 
@@ -43,8 +53,11 @@ class LiveApp:
 
     def start(self) -> None:
         self.settings.data_dir.mkdir(parents=True, exist_ok=True)
-        if self.settings.hosted and self.settings.retention_days > 0:
-            self.store.prune(self.settings.retention_days)
+        if self.settings.hosted:
+            for ws in self.store.list_workspaces():
+                days = int(plan_of(ws.get("plan")).get("retention_days") or 0)
+                if days > 0:
+                    self.store.prune(days, ws["id"])
         self._worker.start()
 
     def stop(self) -> None:
@@ -65,6 +78,7 @@ class LiveApp:
             "judge": "on" if self.settings.live_judge else "off",
             "hosted": self.settings.hosted,
             "retention_days": self.settings.retention_days if self.settings.hosted else None,
+            "hosted_judge": bool(self.settings.hosted_judge_api_key) if self.settings.hosted else False,
         }
 
     def ingest_native(
@@ -80,6 +94,10 @@ class LiveApp:
         expected = payload.get("expected_tools")
         if expected is not None and not isinstance(expected, list):
             raise TypeError("expected_tools must be an array")
+        if self.settings.hosted:
+            enforce_ingest_limit(self.store, workspace_id, True)
+            if sampled:
+                enforce_score_limit(self.store, workspace_id, True)
         self.store.put_ingest(
             ingest_id,
             agent_id=str(payload.get("agent_id") or "default"),
@@ -198,11 +216,94 @@ class LiveApp:
         token = self.store.create_session(user["id"], user["workspace_id"])
         return ({"ok": True, "workspace_id": user["workspace_id"]}, token)
 
+    def sso_consume(self, email: str, workspace_id: str | None = None) -> tuple[dict[str, Any], str]:
+        if not valid_email(email):
+            raise ValueError("invalid email")
+        user = self.store.get_user_by_email(email)
+        if user:
+            token = self.store.create_session(user["id"], user["workspace_id"])
+            return (
+                {"ok": True, "workspace_id": user["workspace_id"], "email": email.strip().lower()},
+                token,
+            )
+        wid = workspace_id or self.store.create_workspace(email.split("@")[0])
+        uid = self.store.create_user(email, "", wid, role="owner")
+        token = self.store.create_session(uid, wid)
+        return (
+            {
+                "ok": True,
+                "workspace_id": wid,
+                "email": email.strip().lower(),
+                "created": True,
+            },
+            token,
+        )
+
+    def judge_for(
+        self, workspace_id: str
+    ) -> tuple[bool | dict[str, Any], str]:
+        """Return (judge arg for run_dataset, source). source is off|env|byok|hosted."""
+        if not self.settings.hosted:
+            if self.settings.live_judge:
+                return True, "env"
+            return False, "off"
+        ws = self.store.get_workspace(workspace_id) or {}
+        plan = plan_of(ws.get("plan"))
+        mode = str(ws.get("judge_mode") or "off")
+        if mode == "hosted":
+            if not plan.get("hosted_judge"):
+                return False, "off"
+            if not self.settings.hosted_judge_api_key:
+                return False, "off"
+            return (
+                {
+                    "api_key": self.settings.hosted_judge_api_key,
+                    "base_url": self.settings.hosted_judge_base_url,
+                    "model": self.settings.hosted_judge_model,
+                },
+                "hosted",
+            )
+        if mode == "byok" and ws.get("byok_key"):
+            return (
+                {
+                    "api_key": ws.get("byok_key"),
+                    "base_url": ws.get("byok_base_url"),
+                    "model": ws.get("byok_model"),
+                },
+                "byok",
+            )
+        return False, "off"
+
+    def usage_body(self, workspace_id: str) -> dict[str, Any]:
+        ws = self.store.get_workspace(workspace_id) or {}
+        plan = plan_of(ws.get("plan"))
+        now = datetime.now(UTC)
+        day_ago = (now - timedelta(days=1)).isoformat()
+        month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0).isoformat()
+        return {
+            "plan": plan["id"],
+            "retention_days": plan["retention_days"],
+            "ingest_last_24h": self.store.count_ingests_since(workspace_id, day_ago),
+            "ingest_per_day": plan["ingest_per_day"],
+            "scores_this_month": self.store.count_diagnoses_since(workspace_id, month_start),
+            "scores_per_month": plan["scores_per_month"],
+            "hosted_judge_this_month": self.store.count_usage(
+                workspace_id, "hosted_judge", month_start
+            ),
+            "seats_used": self.store.count_users(workspace_id),
+            "seats": plan["seats"],
+            "hosted_judge_allowed": bool(plan.get("hosted_judge")),
+            "saml_allowed": bool(plan.get("saml")),
+        }
+
     def run_saved_dataset(self, workspace_id: str, dataset_id: str) -> dict[str, Any]:
         row = self.store.get_dataset(workspace_id, dataset_id)
         if not row:
             raise KeyError(dataset_id)
-        diagnosis = run_dataset(row["body"], judge=self.settings.live_judge)
+        if self.settings.hosted:
+            enforce_score_limit(self.store, workspace_id, True)
+        judge_arg, source = self.judge_for(workspace_id)
+        diagnosis = run_dataset(row["body"], judge=judge_arg)
         ingest_id = str(diagnosis.get("run_id") or uuid.uuid4())
         self.store.put_ingest(
             ingest_id,
@@ -217,6 +318,8 @@ class LiveApp:
         if diagnosis.get("run_id") != ingest_id:
             diagnosis = {**diagnosis, "run_id": ingest_id}
         self.store.put_diagnosis(ingest_id, diagnosis)
+        if source == "hosted":
+            self.store.add_usage(workspace_id, "hosted_judge")
         return diagnosis
 
     def _run_worker(self) -> None:
@@ -241,16 +344,20 @@ class LiveApp:
                 if row.get("expected_tools_json")
                 else None
             )
+            workspace_id = str(row.get("workspace_id") or LOCAL_WORKSPACE)
+            judge_arg, source = self.judge_for(workspace_id)
             diagnosis = score_one_trace(
                 trace,
                 config=self.config,
                 case_id=str(row.get("case_id") or ingest_id),
                 expected_tools=expected,
                 run_id=ingest_id,
-                judge=self.settings.live_judge,
+                judge=judge_arg,
             )
             self.store.put_diagnosis(ingest_id, diagnosis)
-            self._maybe_alert(str(row.get("workspace_id") or LOCAL_WORKSPACE))
+            if source == "hosted":
+                self.store.add_usage(workspace_id, "hosted_judge")
+            self._maybe_alert(workspace_id)
         except Exception as exc:  # noqa: BLE001 - worker must keep running
             self.store.mark_error(ingest_id, str(exc))
 
@@ -319,6 +426,9 @@ def make_handler(app: LiveApp) -> type[BaseHTTPRequestHandler]:
             if path in {"/health", "/v1/health", "/status", "/v1/status"}:
                 self._json(200, app.status_body())
                 return
+            if path in {"/v1/plans"}:
+                self._json(200, {"plans": public_catalog()})
+                return
             if path in {"/login", "/signup"}:
                 if not app.settings.hosted:
                     self._json(404, {"error": "not_found"})
@@ -340,14 +450,40 @@ def make_handler(app: LiveApp) -> type[BaseHTTPRequestHandler]:
                 return
             if path == "/v1/me":
                 ws = app.store.get_workspace(workspace_id) or {}
-                ident = self._identity() or {}
+                ident = self._identity() or {"role": "owner"}
                 user = app.store.get_user(ident["user_id"]) if ident.get("user_id") else None
+                plan = plan_of(ws.get("plan"))
                 self._json(
                     200,
                     {
                         "workspace_id": workspace_id,
                         "workspace_name": ws.get("name"),
                         "email": (user or {}).get("email") or "",
+                        "role": ident.get("role") or (user or {}).get("role") or "owner",
+                        "plan": plan["id"],
+                    },
+                )
+                return
+            if path == "/v1/plan":
+                ws = app.store.get_workspace(workspace_id) or {}
+                plan = plan_of(ws.get("plan"))
+                self._json(200, {"plan": plan, "catalog": public_catalog()})
+                return
+            if path == "/v1/usage":
+                self._json(200, app.usage_body(workspace_id))
+                return
+            if path == "/v1/members":
+                self._json(200, {"members": app.store.list_users(workspace_id)})
+                return
+            if path == "/v1/judge":
+                ws = app.store.get_workspace(workspace_id) or {}
+                self._json(
+                    200,
+                    {
+                        "mode": ws.get("judge_mode") or "off",
+                        "hosted_available": bool(app.settings.hosted_judge_api_key)
+                        and bool(plan_of(ws.get("plan")).get("hosted_judge")),
+                        "byok_configured": bool(ws.get("byok_key")),
                     },
                 )
                 return
@@ -443,21 +579,73 @@ def make_handler(app: LiveApp) -> type[BaseHTTPRequestHandler]:
                     extra={"Set-Cookie": clear_session_cookie(secure=app.settings.cookie_secure)},
                 )
                 return
+            if path == "/v1/sso/consume":
+                if not app.settings.hosted or not app.settings.sso_secret:
+                    self._json(404, {"error": "not_found"})
+                    return
+                email = str(payload.get("email") or "")
+                wid = str(payload.get("workspace_id") or "")
+                exp = str(payload.get("exp") or "")
+                sig = str(payload.get("sig") or "")
+                if not exp or exp < datetime.now(UTC).isoformat():
+                    self._json(401, {"error": "sso_expired"})
+                    return
+                if not verify_sso(app.settings.sso_secret, email, wid, exp, sig):
+                    self._json(401, {"error": "sso_invalid"})
+                    return
+                try:
+                    body, token = app.sso_consume(email, wid or None)
+                except ValueError as exc:
+                    self._json(400, {"error": str(exc)})
+                    return
+                self._json(
+                    200,
+                    body,
+                    extra={"Set-Cookie": session_cookie(token, secure=app.settings.cookie_secure)},
+                )
+                return
+            if path == "/v1/ops/plan":
+                secret = app.settings.ops_secret
+                got = self.headers.get("X-Phthos-Ops") or ""
+                if not secret or not got or not hmac.compare_digest(secret, got):
+                    self._json(401, {"error": "unauthorized"})
+                    return
+                wid = str(payload.get("workspace_id") or "")
+                plan_id = str(payload.get("plan") or "")
+                if plan_id not in PLANS or plan_id == "self-host":
+                    self._json(400, {"error": "invalid plan"})
+                    return
+                if not app.store.get_workspace(wid):
+                    self._json(404, {"error": "not_found"})
+                    return
+                app.store.set_workspace_plan(wid, plan_id)
+                self._json(200, {"ok": True, "workspace_id": wid, "plan": plan_id})
+                return
             workspace_id = self._need_workspace()
             if workspace_id is None:
                 return
+            ident = self._identity() or {"role": "owner", "via": "local"}
             if path in {"/v1/traces", "/v1/otel/traces"}:
                 try:
+                    require_role(ident, "member")
                     if path.endswith("/otel/traces") or is_otlp(payload):
                         body = app.ingest_otlp(payload, workspace_id=workspace_id)
                     else:
                         body = app.ingest_native(payload, workspace_id=workspace_id)
+                except AccessError as exc:
+                    self._json(exc.status, exc.body())
+                    return
                 except (ValueError, TypeError) as exc:
                     self._json(400, {"error": str(exc)})
                     return
                 self._json(202, body)
                 return
             if path.startswith("/v1/diagnoses/") and path.endswith("/export"):
+                try:
+                    require_role(ident, "member")
+                except AccessError as exc:
+                    self._json(exc.status, exc.body())
+                    return
                 run_id = path[len("/v1/diagnoses/") : -len("/export")].strip("/")
                 dest = Path(payload["path"]) if payload.get("path") else None
                 try:
@@ -468,6 +656,11 @@ def make_handler(app: LiveApp) -> type[BaseHTTPRequestHandler]:
                 self._json(200, result)
                 return
             if path == "/v1/datasets":
+                try:
+                    require_role(ident, "member")
+                except AccessError as exc:
+                    self._json(exc.status, exc.body())
+                    return
                 body = payload.get("dataset")
                 if not isinstance(body, dict):
                     self._json(400, {"error": "dataset must be an object"})
@@ -478,9 +671,13 @@ def make_handler(app: LiveApp) -> type[BaseHTTPRequestHandler]:
                 self._json(201, {"id": did, "name": payload.get("name") or "dataset"})
                 return
             if path.startswith("/v1/datasets/") and path.endswith("/run"):
-                did = path[len("/v1/datasets/") : -len("/run")].strip("/")
                 try:
+                    require_role(ident, "member")
+                    did = path[len("/v1/datasets/") : -len("/run")].strip("/")
                     doc = app.run_saved_dataset(workspace_id, did)
+                except AccessError as exc:
+                    self._json(exc.status, exc.body())
+                    return
                 except KeyError:
                     self._json(404, {"error": "not_found"})
                     return
@@ -490,6 +687,11 @@ def make_handler(app: LiveApp) -> type[BaseHTTPRequestHandler]:
                 self._json(200, doc)
                 return
             if path == "/v1/alerts":
+                try:
+                    require_role(ident, "admin")
+                except AccessError as exc:
+                    self._json(exc.status, exc.body())
+                    return
                 webhook = payload.get("webhook_url")
                 email = payload.get("alert_email")
                 rate = payload.get("min_pass_rate")
@@ -509,6 +711,70 @@ def make_handler(app: LiveApp) -> type[BaseHTTPRequestHandler]:
                         "min_pass_rate": ws.get("alert_min_pass_rate"),
                     },
                 )
+                return
+            if path == "/v1/members":
+                try:
+                    require_role(ident, "admin")
+                    enforce_seat_limit(app.store, workspace_id)
+                except AccessError as exc:
+                    self._json(exc.status, exc.body())
+                    return
+                email = str(payload.get("email") or "")
+                password = str(payload.get("password") or "")
+                role = str(payload.get("role") or "member")
+                if role not in ROLES or role == "owner":
+                    self._json(400, {"error": "invalid role"})
+                    return
+                if not valid_email(email) or len(password) < 8:
+                    self._json(400, {"error": "invalid email or password"})
+                    return
+                if app.store.get_user_by_email(email):
+                    self._json(409, {"error": "email already registered"})
+                    return
+                uid = app.store.create_user(
+                    email, hash_password(password), workspace_id, role=role
+                )
+                self._json(201, {"id": uid, "email": email.strip().lower(), "role": role})
+                return
+            if path.startswith("/v1/members/") and path.endswith("/role"):
+                try:
+                    require_role(ident, "admin")
+                except AccessError as exc:
+                    self._json(exc.status, exc.body())
+                    return
+                uid = path[len("/v1/members/") : -len("/role")].strip("/")
+                role = str(payload.get("role") or "")
+                if role not in ROLES or role == "owner":
+                    self._json(400, {"error": "invalid role"})
+                    return
+                if not app.store.set_user_role(workspace_id, uid, role):
+                    self._json(404, {"error": "not_found"})
+                    return
+                self._json(200, {"ok": True, "id": uid, "role": role})
+                return
+            if path == "/v1/judge":
+                try:
+                    require_role(ident, "admin")
+                except AccessError as exc:
+                    self._json(exc.status, exc.body())
+                    return
+                mode = str(payload.get("mode") or "off")
+                if mode not in {"off", "byok", "hosted"}:
+                    self._json(400, {"error": "invalid mode"})
+                    return
+                ws = app.store.get_workspace(workspace_id) or {}
+                plan = plan_of(ws.get("plan"))
+                if mode == "hosted" and not plan.get("hosted_judge"):
+                    self._json(403, {"error": "hosted_judge_requires_pro"})
+                    return
+                app.store.set_judge_settings(
+                    workspace_id,
+                    mode=mode,
+                    byok_key=str(payload["api_key"]) if payload.get("api_key") else None,
+                    byok_base_url=str(payload["base_url"]) if payload.get("base_url") else None,
+                    byok_model=str(payload["model"]) if payload.get("model") else None,
+                )
+                self._json(200, {"ok": True, "mode": mode})
                 return
             self._json(404, {"error": "not_found"})
 

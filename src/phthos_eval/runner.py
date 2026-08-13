@@ -27,7 +27,7 @@ def run_dataset(
     *,
     scorers: Sequence[Scorer] | None = None,
     run_id: str | None = None,
-    judge: bool = True,
+    judge: bool | dict[str, Any] = True,
 ) -> dict[str, Any]:
     n_runs = int(dataset.get("n_runs") or 2)
     if n_runs < 1:
@@ -134,15 +134,22 @@ def run_dataset(
         "judge": {"skipped": True, "reason": "pending", "score": None, "error": None},
         "cases": case_rows,
     }
-    if judge:
-        diagnosis["judge"] = maybe_judge(diagnosis)
-    else:
+    if judge is False:
         diagnosis["judge"] = {
             "skipped": True,
             "reason": "disabled",
             "score": None,
             "error": None,
         }
+    elif isinstance(judge, dict):
+        diagnosis["judge"] = maybe_judge(
+            diagnosis,
+            api_key=judge.get("api_key"),
+            base_url=judge.get("base_url"),
+            model=judge.get("model"),
+        )
+    else:
+        diagnosis["judge"] = maybe_judge(diagnosis)
     errors = validate_diagnosis(diagnosis)
     if errors:
         raise ValueError("invalid diagnosis: " + "; ".join(errors))

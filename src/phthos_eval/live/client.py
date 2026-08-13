@@ -92,6 +92,68 @@ class LiveClient:
     def alerts(self) -> dict[str, Any]:
         return self._json("GET", "v1/alerts")
 
+    def plans(self) -> dict[str, Any]:
+        return self._json("GET", "v1/plans")
+
+    def plan(self) -> dict[str, Any]:
+        return self._json("GET", "v1/plan")
+
+    def usage(self) -> dict[str, Any]:
+        return self._json("GET", "v1/usage")
+
+    def members(self) -> dict[str, Any]:
+        return self._json("GET", "v1/members")
+
+    def invite(self, email: str, password: str, role: str = "member") -> dict[str, Any]:
+        return self._json(
+            "POST", "v1/members", {"email": email, "password": password, "role": role}
+        )
+
+    def set_role(self, user_id: str, role: str) -> dict[str, Any]:
+        return self._json("POST", f"v1/members/{user_id}/role", {"role": role})
+
+    def judge_settings(self) -> dict[str, Any]:
+        return self._json("GET", "v1/judge")
+
+    def set_judge(
+        self,
+        mode: str,
+        *,
+        api_key: str | None = None,
+        base_url: str | None = None,
+        model: str | None = None,
+    ) -> dict[str, Any]:
+        body: dict[str, Any] = {"mode": mode}
+        if api_key is not None:
+            body["api_key"] = api_key
+        if base_url is not None:
+            body["base_url"] = base_url
+        if model is not None:
+            body["model"] = model
+        return self._json("POST", "v1/judge", body)
+
+    def set_plan_ops(self, workspace_id: str, plan: str, ops_secret: str) -> dict[str, Any]:
+        return self._json(
+            "POST",
+            "v1/ops/plan",
+            {"workspace_id": workspace_id, "plan": plan},
+            extra_headers={"X-Phthos-Ops": ops_secret},
+        )
+
+    def sso_consume(
+        self,
+        email: str,
+        *,
+        workspace_id: str,
+        exp: str,
+        sig: str,
+    ) -> dict[str, Any]:
+        return self._json(
+            "POST",
+            "v1/sso/consume",
+            {"email": email, "workspace_id": workspace_id, "exp": exp, "sig": sig},
+        )
+
     def ingest(
         self,
         spans: list[dict[str, Any]],
@@ -119,11 +181,19 @@ class LiveClient:
             body["path"] = path
         return self._json("POST", f"v1/diagnoses/{run_id}/export", body)
 
-    def _json(self, method: str, path: str, body: dict[str, Any] | None = None) -> dict[str, Any]:
+    def _json(
+        self,
+        method: str,
+        path: str,
+        body: dict[str, Any] | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> dict[str, Any]:
         data = None if body is None else json.dumps(body).encode("utf-8")
         headers = {"Content-Type": "application/json", "Accept": "application/json"}
         if self.api_key:
             headers["Authorization"] = f"Bearer {self.api_key}"
+        if extra_headers:
+            headers.update(extra_headers)
         req = urllib.request.Request(
             urljoin(self.base_url, path),
             data=data,

@@ -91,10 +91,30 @@ def identity_from_headers(store: Any, *, authorization: str | None, x_key: str |
     if raw_key:
         row = store.workspace_for_api_key(raw_key)
         if row:
-            return {"workspace_id": row["workspace_id"], "user_id": row.get("user_id") or "", "via": "key"}
+            return {
+                "workspace_id": row["workspace_id"],
+                "user_id": row.get("user_id") or "",
+                "via": "key",
+                "role": row.get("role") or "admin",
+            }
     raw_sess = parse_cookie(cookie)
     if raw_sess:
         row = store.workspace_for_session(raw_sess)
         if row:
-            return {"workspace_id": row["workspace_id"], "user_id": row["user_id"], "via": "session"}
+            return {
+                "workspace_id": row["workspace_id"],
+                "user_id": row["user_id"],
+                "via": "session",
+                "role": row.get("role") or "owner",
+            }
     return None
+
+
+def sign_sso(secret: str, email: str, workspace_id: str, exp: str) -> str:
+    msg = f"{normalize_email(email)}|{workspace_id}|{exp}".encode()
+    return hmac.new(secret.encode("utf-8"), msg, hashlib.sha256).hexdigest()
+
+
+def verify_sso(secret: str, email: str, workspace_id: str, exp: str, sig: str) -> bool:
+    expected = sign_sso(secret, email, workspace_id, exp)
+    return hmac.compare_digest(expected, sig)

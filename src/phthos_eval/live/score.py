@@ -12,7 +12,7 @@ def score_one_trace(
     case_id: str,
     expected_tools: list[str] | None = None,
     run_id: str | None = None,
-    judge: bool = False,
+    judge: bool | dict[str, Any] = False,
 ) -> dict[str, Any]:
     """Score one live trace with the same runner and scorers as offline."""
     tools = expected_tools
