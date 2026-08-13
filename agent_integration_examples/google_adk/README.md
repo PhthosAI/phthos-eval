@@ -1,6 +1,6 @@
 # Google ADK
 
-One DuckDuckGo search tool. Copy the four callbacks onto an existing `Agent`, then score. Eval does not wrap ADK or apply a fix.
+One DuckDuckGo search tool. `sink.wrap(Agent(...))` then score. Eval does not replace ADK or apply a fix.
 
 | Folder | Mode |
 |--------|------|

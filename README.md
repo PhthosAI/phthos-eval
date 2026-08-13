@@ -83,7 +83,7 @@ flowchart TB
   ADK[Google ADK]
   CR[CrewAI / AutoGen / custom]
   OT[OpenTelemetry / OpenInference]
-  LC --> MAP[callbacks / export / your logger]
+  LC --> MAP[TraceSink.wrap / OTel]
   ADK --> MAP
   CR --> MAP
   OT --> MAP
@@ -92,18 +92,20 @@ flowchart TB
   PE --> DJ[diagnosis.json]
 ```
 
-**Today:** you map your framework’s events into that JSON (a small callback or post-run dump). Then `phthos-eval run` is the same for every stack.
+**Today:** wrap the agent you already have. `TraceSink` attaches collectors; ADK/LangChain/CrewAI still **run** the agent. We only **score** spans.
 
-**Typical mappings**
+```python
+from phthos_eval import TraceSink
 
-| Stack | Where traces already exist | What you map |
-|-------|----------------------------|--------------|
-| LangChain / LangGraph | Callbacks, LangSmith export, or run tree | Each LLM/tool event → one span |
-| Google ADK | Session / callbacks | Tool calls → `type: tool`. Copy-paste: [`agent_integration_examples/google_adk/`](agent_integration_examples/google_adk/) |
-| CrewAI / AutoGen | Step / message log | Same |
-| Anything on OpenTelemetry / OpenInference | Span export | Filter LLM + tool spans |
+sink = TraceSink()
+agent = sink.wrap(agent)   # Google ADK, LangChain/LangGraph, CrewAI
+# run the agent as usual, then:
+doc = sink.diagnose(expected_tools=["search"])
+```
 
-You do **not** wrap the agent in a Phthos runtime. Swap LangChain for ADK and the **eval file stays valid** as long as spans still look like the table above.
+Unknown stack: `sink.add_llm(...)` / `sink.add_tool(...)`, or export OpenTelemetry OpenInference to `POST /v1/otel/traces`. Examples: [`agent_integration_examples/`](agent_integration_examples/).
+
+You do **not** replace the agent runtime. Swap LangChain for ADK and the **eval file stays valid** as long as spans are still `llm` / `tool` JSON.
 
 **Live:** `POST /v1/traces` with that span JSON, or OTLP/HTTP JSON (`openinference.span.kind` / `gen_ai.tool.name`) to a self-hosted engine. See [Live engine](#live-engine-self-host).
 
@@ -129,8 +131,8 @@ Try the bundled examples after cloning this repo:
 ```bash
 python -m phthos_eval run -d fixtures/dataset.json -o diagnosis.json
 python -m phthos_eval run -d examples/support_agent/dataset.json -o diagnosis.json
-# Google ADK + DuckDuckGo: python agent_integration_examples/google_adk/lib/agent.py
-# Live: python agent_integration_examples/google_adk/live/agent.py
+# Wrap + score: python agent_integration_examples/google_adk/lib/agent.py
+# Wrap + live: python agent_integration_examples/google_adk/live/agent.py
 ```
 
 ---

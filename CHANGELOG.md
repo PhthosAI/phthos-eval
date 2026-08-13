@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.4 — 2026-08-13
+
+- `TraceSink.wrap(agent)` captures llm/tool spans on Google ADK, LangChain/LangGraph, and CrewAI. Users do not copy an `EvalSink` class. Also `instrument(agent)`, `sink.diagnose()`, `sink.add_llm` / `sink.add_tool` for anything else.
+
 ## 0.6.3 — 2026-08-13
 
 - Agent integration examples live under [`agent_integration_examples/<framework>/{lib,live}/`](agent_integration_examples/). Google ADK: [`google_adk/lib`](agent_integration_examples/google_adk/lib/agent.py) and [`google_adk/live`](agent_integration_examples/google_adk/live/agent.py). Removed `examples/adk/`.

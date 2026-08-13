@@ -1,6 +1,6 @@
 # Agent integration examples
 
-Layout: **framework / lib | live**. Phthos Eval does not import these frameworks. Copy the four callbacks onto your existing agent, then score. Eval does not apply a fix.
+Layout: **framework / lib | live**. Wrap with `TraceSink` — do not copy callback classes. Eval does not apply a fix.
 
 ```text
 agent_integration_examples/
