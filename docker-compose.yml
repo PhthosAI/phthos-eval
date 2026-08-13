@@ -1,0 +1,16 @@
+services:
+  phthos-eval:
+    build: .
+    ports:
+      - "8765:8765"
+    environment:
+      PHTHOS_EVAL_SAMPLE_RATE: ${PHTHOS_EVAL_SAMPLE_RATE:-0.05}
+      PHTHOS_EVAL_DATA_DIR: /data
+      PHTHOS_EVAL_LIVE_CONFIG: /etc/phthos-eval/config.json
+      PHTHOS_EVAL_LIVE_HOST: "0.0.0.0"
+      # Leave unset. Set PHTHOS_EVAL_LIVE_JUDGE=1 and a judge key only if you accept the token bill.
+      PHTHOS_EVAL_LIVE_JUDGE: ${PHTHOS_EVAL_LIVE_JUDGE:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      PHTHOS_EVAL_API_KEY: ${PHTHOS_EVAL_API_KEY:-}
+    volumes:
+      - ./phthos-eval-data:/data

@@ -56,7 +56,7 @@ Seamless here means one shared **trace shape**, not a plugin inside each framewo
 
 You do **not** wrap the agent in a Phthos runtime. Swap LangChain for ADK and the **eval file stays valid** as long as spans still look like the table above.
 
-**Later (live engine):** ingest OpenTelemetry so many stacks work with no custom JSON. Until then, the adapter is “emit spans.”
+**Live:** `POST /v1/traces` with that span JSON, or OTLP/HTTP JSON (`openinference.span.kind` / `gen_ai.tool.name`) to a self-hosted engine. See [Live engine](#live-engine-self-host).
 
 ---
 
@@ -81,6 +81,44 @@ Try the bundled examples after cloning this repo:
 python -m phthos_eval run -d fixtures/dataset.json -o diagnosis.json
 python -m phthos_eval run -d examples/support_agent/dataset.json -o diagnosis.json
 ```
+
+---
+
+## Live engine (self-host)
+
+Same scorers as offline, on a **sampled** production stream. You run the process; data stays on your machine. This is not a hosted SaaS and not a LangSmith clone.
+
+```bash
+# default sample rate 5%, judge off
+phthos-eval live -c examples/live/config.json
+
+# or
+docker compose up --build
+```
+
+UI at http://127.0.0.1:8765 — pass rate, cost, policy hits, open a run to see diagnosis JSON. No prompt editor.
+
+Ingest does **not** wait for scoring:
+
+```python
+from phthos_eval.live import LiveClient
+
+client = LiveClient("http://127.0.0.1:8765")
+client.ingest(spans=[...], agent_id="support", expected_tools=["search"])
+```
+
+`GET /v1/scores` · `GET /v1/diagnoses/{id}` · `POST /v1/diagnoses/{id}/export` writes an offline dataset you can `phthos-eval run`.
+
+Demo (forces 100% sample — **not** for production):
+
+```bash
+PHTHOS_EVAL_SAMPLE_RATE=1 docker compose up --build
+phthos-eval live-demo
+```
+
+Full Compose / OTel / cost knobs: [`examples/live/README.md`](examples/live/README.md).
+
+**Do not bankrupt yourself:** default is 5% sample and **no** LLM judge. A judge key on 100% of live traffic is usually more expensive than the agent. Opt in with `--live-judge` plus `OPENAI_API_KEY` / `PHTHOS_EVAL_API_KEY` only if you accept that bill.
 
 ---
 
@@ -241,6 +279,7 @@ Not required. Deterministic scorers always run.
 | `OPENAI_API_KEY` or `PHTHOS_EVAL_API_KEY` | Your judge key |
 | `PHTHOS_EVAL_JUDGE_BASE_URL` | OpenAI-compatible URL (OpenAI, Ollama, a gateway, …) |
 | `PHTHOS_EVAL_JUDGE_MODEL` | Model id (default `gpt-4o-mini`) |
+| `PHTHOS_EVAL_LIVE_JUDGE` | Live engine only: set to `1` (or `--live-judge`) to run the judge on **sampled** traces. Off by default so a leftover key cannot bill every ingest. |
 
 Do **not** reuse the **agent’s** production keys as the judge unless you intend that. Agent keys run the system under test; judge keys only score. With no judge key, `judge.skipped` is `true` and `reason` is `no_key`.
 
@@ -248,9 +287,9 @@ Do **not** reuse the **agent’s** production keys as the judge unless you inten
 
 ## What this is not
 
-- Not a trace UI or hosted dashboard (offline CLI / library only for now).
-- Not an auto-fixer or fine-tuner.
-- Not a hosted LLM. You bring a key only if you want a judge.
+- Not LangSmith (no prompt playground, no hosted cloud accounts).
+- Not an auto-fixer or fine-tuner. Export a failing live run; you (or another product) apply the change.
+- Not a hosted LLM. OSS / self-host uses your machine and, optionally, your judge key.
 
 ---
 

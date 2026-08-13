@@ -1,4 +1,4 @@
-"""Phthos Eval — pip package for offline agent diagnosis."""
+"""Phthos Eval — offline runner and self-host live engine."""
 
 from phthos_eval.constants import (
     CHANGE_CLASSES,
