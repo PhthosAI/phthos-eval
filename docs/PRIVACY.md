@@ -30,6 +30,7 @@ Passwords and raw API keys are not stored. The plaintext API key is shown **once
 
 - One run: `POST /v1/diagnoses/{id}/export` → offline dataset JSON
 - Hosted workspace: `GET /v1/export` → diagnoses + datasets
+- Fine-tune file (not training): `GET /v1/export/finetune` / `phthos-eval export-finetune`
 - OSS CLI: `phthos-eval run` on that JSON, no cloud required
 
 ## Self-host

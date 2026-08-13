@@ -284,18 +284,34 @@ class Store:
             "scored": int(scored),
         }
 
-    def recent(self, limit: int = 50, workspace_id: str = LOCAL_WORKSPACE) -> list[dict[str, Any]]:
-        with self._lock:
-            rows = self._conn.execute(
-                """
-                SELECT id, created_at, passed, change_class, cost, policy_hits
-                FROM diagnoses
-                WHERE workspace_id = ?
-                ORDER BY created_at DESC
+    def recent(
+        self,
+        limit: int = 50,
+        workspace_id: str = LOCAL_WORKSPACE,
+        *,
+        since: str | None = None,
+        agent_id: str | None = None,
+    ) -> list[dict[str, Any]]:
+        where = ["d.workspace_id = ?"]
+        args: list[Any] = [workspace_id]
+        if since:
+            where.append("d.created_at >= ?")
+            args.append(since)
+        if agent_id:
+            where.append("i.agent_id = ?")
+            args.append(agent_id)
+        args.append(limit)
+        sql = f"""
+                SELECT d.id, d.created_at, d.passed, d.change_class, d.cost, d.policy_hits,
+                       i.agent_id
+                FROM diagnoses d
+                LEFT JOIN ingests i ON i.id = d.ingest_id
+                WHERE {' AND '.join(where)}
+                ORDER BY d.created_at DESC
                 LIMIT ?
-                """,
-                (workspace_id, limit),
-            ).fetchall()
+                """
+        with self._lock:
+            rows = self._conn.execute(sql, tuple(args)).fetchall()
         return [dict(r) for r in rows]
 
     def summary(self, workspace_id: str = LOCAL_WORKSPACE) -> dict[str, Any]:

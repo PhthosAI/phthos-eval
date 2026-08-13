@@ -143,12 +143,47 @@ def test_hosted_score_drop_webhook(hosted) -> None:
         client.ingest(_spans("fail-policy"), case_id="fail-policy", expected_tools=["search"])
         app.wait_idle(timeout=5)
         assert received, "webhook should fire when pass rate drops"
-        assert received[0]["event"] == "score_drop"
-        assert received[0]["pass_rate"] < 0.8
+        drops = [p for p in received if p.get("event") == "score_drop"]
+        diagnoses = [p for p in received if p.get("event") == "diagnosis"]
+        assert drops, "score_drop event after pass rate falls"
+        assert drops[0]["pass_rate"] < 0.8
+        assert diagnoses
+        assert "spans" not in diagnoses[0]
+        assert diagnoses[0]["schema_version"] == SCHEMA_VERSION
         alerts = client.alerts()
         assert alerts["recent"][0]["kind"] == "score_drop"
     finally:
         hook.shutdown()
+
+
+def test_hosted_compare_poll_finetune_and_agent_version(hosted) -> None:
+    url, _app = hosted
+    client = LiveClient(url)
+    client.api_key = client.signup("eco@example.com", "password1", "eco")["api_key"]
+    created = client.put_dataset("consumer", DATASET)
+    before = client.run_dataset(created["id"], agent_version="v1")
+    assert validate_diagnosis(before) == []
+    assert before["scores"]["task_success"] < 1.0
+    listed = client.diagnoses(agent_id="v1")
+    assert listed["schema_version"] == SCHEMA_VERSION
+    assert listed["diagnoses"][0]["id"] == before["run_id"]
+    assert listed["diagnoses"][0]["agent_id"] == "v1"
+    scores = client.scores(agent_id="v1")
+    assert scores["runs"][0]["agent_id"] == "v1"
+    after = client.run_dataset(created["id"], agent_version="v2")
+    cmp = client.compare(before_run_id=before["run_id"], after_run_id=after["run_id"])
+    assert cmp["before_run_id"] == before["run_id"]
+    assert cmp["after_run_id"] == after["run_id"]
+    by_version = client.compare(
+        dataset_id=created["id"],
+        agent_version="v2",
+        baseline_run_id=before["run_id"],
+    )
+    assert by_version["after_run_id"] == after["run_id"]
+    ft = client.export_finetune(created["id"], run_id=before["run_id"])
+    assert ft["format"] == "phthos-eval-finetune.v1"
+    assert ft["rows"]
+    assert "does not train" in ft["note"]
 
 
 def test_oss_self_host_still_open(tmp_path: Path) -> None:

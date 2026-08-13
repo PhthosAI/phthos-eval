@@ -1,11 +1,13 @@
 """Phthos Eval — offline runner and live engine (self-host or hosted)."""
 
+from phthos_eval.compare import compare_diagnoses
 from phthos_eval.constants import (
     CHANGE_CLASSES,
     FAILURE_TO_CHANGE_CLASS,
     FAILURE_TYPES,
     SCHEMA_VERSION,
 )
+from phthos_eval.finetune_export import labeled_trajectories
 from phthos_eval.runner import run_dataset, write_diagnosis
 from phthos_eval.schema import load_schema, schema_file, validate_diagnosis
 from phthos_eval.scorers import (
@@ -50,8 +52,10 @@ __all__ = [
     "Scores",
     "ToolSchemaScorer",
     "WrongToolScorer",
+    "compare_diagnoses",
     "default_scorers",
     "failure",
+    "labeled_trajectories",
     "load_schema",
     "pointer",
     "run_dataset",
@@ -60,3 +64,4 @@ __all__ = [
     "validate_diagnosis",
     "write_diagnosis",
 ]
+

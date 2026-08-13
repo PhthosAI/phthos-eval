@@ -5,6 +5,8 @@ import json
 import sys
 from pathlib import Path
 
+from phthos_eval.compare import compare_diagnoses
+from phthos_eval.finetune_export import labeled_trajectories
 from phthos_eval.live.config import LiveSettings, clamp_rate
 from phthos_eval.live.demo import run_demo
 from phthos_eval.live.server import serve
@@ -49,6 +51,22 @@ def main(argv: list[str] | None = None) -> int:
     demo_p.add_argument("--url", default="http://127.0.0.1:8765")
     demo_p.add_argument("--api-key", default=None, help="Bearer key when the engine is in hosted mode")
 
+    cmp_p = sub.add_parser(
+        "compare",
+        help="Same-case before/after scores. Eval does not apply the change.",
+    )
+    cmp_p.add_argument("--before", required=True, type=Path, help="Diagnosis JSON before the change")
+    cmp_p.add_argument("--after", required=True, type=Path, help="Diagnosis JSON after the change")
+    cmp_p.add_argument("--out", "-o", type=Path, default=None)
+
+    ft_p = sub.add_parser(
+        "export-finetune",
+        help="Labeled trajectories for *their* fine-tune stack. This product does not train.",
+    )
+    ft_p.add_argument("--dataset", "-d", required=True, type=Path)
+    ft_p.add_argument("--diagnosis", required=True, type=Path)
+    ft_p.add_argument("--out", "-o", type=Path, default=Path("finetune.json"))
+
     args = parser.parse_args(argv)
     if args.cmd == "run":
         dataset = json.loads(args.dataset.read_text(encoding="utf-8"))
@@ -84,6 +102,24 @@ def main(argv: list[str] | None = None) -> int:
         if args.hosted:
             settings.hosted = True
         serve(settings)
+        return 0
+    if args.cmd == "compare":
+        before = json.loads(args.before.read_text(encoding="utf-8"))
+        after = json.loads(args.after.read_text(encoding="utf-8"))
+        doc = compare_diagnoses(before, after)
+        text = json.dumps(doc, indent=2) + "\n"
+        if args.out:
+            args.out.write_text(text, encoding="utf-8")
+            print(args.out)
+        else:
+            print(text, end="")
+        return 0
+    if args.cmd == "export-finetune":
+        dataset = json.loads(args.dataset.read_text(encoding="utf-8"))
+        diagnosis = json.loads(args.diagnosis.read_text(encoding="utf-8"))
+        doc = labeled_trajectories(dataset, diagnosis)
+        args.out.write_text(json.dumps(doc, indent=2) + "\n", encoding="utf-8")
+        print(args.out)
         return 0
     return run_demo(args.url, api_key=args.api_key)
 

@@ -12,7 +12,9 @@ from queue import Empty, Queue
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
+from phthos_eval.compare import compare_diagnoses
 from phthos_eval.constants import SCHEMA_VERSION
+from phthos_eval.finetune_export import labeled_trajectories
 from phthos_eval.live.access import (
     AccessError,
     enforce_ingest_limit,
@@ -20,7 +22,7 @@ from phthos_eval.live.access import (
     enforce_seat_limit,
     require_role,
 )
-from phthos_eval.live.alerts import fire_score_drop
+from phthos_eval.live.alerts import fire_score_drop, post_webhook
 from phthos_eval.live.auth import (
     COOKIE_NAME,
     LOCAL_WORKSPACE,
@@ -132,7 +134,14 @@ class LiveApp:
             "ids": [r["id"] for r in results],
         }
 
-    def scores(self, limit: int = 50, workspace_id: str = LOCAL_WORKSPACE) -> dict[str, Any]:
+    def scores(
+        self,
+        limit: int = 50,
+        workspace_id: str = LOCAL_WORKSPACE,
+        *,
+        since: str | None = None,
+        agent_id: str | None = None,
+    ) -> dict[str, Any]:
         counts = self.store.counts(workspace_id)
         summary = self.store.summary(workspace_id)
         return {
@@ -149,8 +158,11 @@ class LiveApp:
                     "change_class": row["change_class"],
                     "cost": row["cost"],
                     "policy_hits": row["policy_hits"],
+                    "agent_id": row.get("agent_id"),
                 }
-                for row in self.store.recent(limit, workspace_id)
+                for row in self.store.recent(
+                    limit, workspace_id, since=since, agent_id=agent_id
+                )
             ],
         }
 
@@ -296,7 +308,13 @@ class LiveApp:
             "saml_allowed": bool(plan.get("saml")),
         }
 
-    def run_saved_dataset(self, workspace_id: str, dataset_id: str) -> dict[str, Any]:
+    def run_saved_dataset(
+        self,
+        workspace_id: str,
+        dataset_id: str,
+        *,
+        agent_version: str | None = None,
+    ) -> dict[str, Any]:
         row = self.store.get_dataset(workspace_id, dataset_id)
         if not row:
             raise KeyError(dataset_id)
@@ -307,7 +325,7 @@ class LiveApp:
         ingest_id = str(diagnosis.get("run_id") or uuid.uuid4())
         self.store.put_ingest(
             ingest_id,
-            agent_id="dataset",
+            agent_id=str(agent_version or "dataset"),
             case_id=str(row["name"]),
             sampled=True,
             trace={"spans": [], "source": "dataset", "dataset_id": dataset_id},
@@ -320,7 +338,93 @@ class LiveApp:
         self.store.put_diagnosis(ingest_id, diagnosis)
         if source == "hosted":
             self.store.add_usage(workspace_id, "hosted_judge")
+        self._notify_diagnosis(workspace_id, diagnosis)
         return diagnosis
+
+    def list_diagnoses(
+        self,
+        workspace_id: str,
+        *,
+        since: str | None = None,
+        agent_id: str | None = None,
+        limit: int = 50,
+    ) -> dict[str, Any]:
+        return {
+            "schema_version": SCHEMA_VERSION,
+            "diagnoses": [
+                {
+                    "id": row["id"],
+                    "created_at": row["created_at"],
+                    "passed": bool(row["passed"]),
+                    "change_class": row["change_class"],
+                    "cost": row["cost"],
+                    "policy_hits": row["policy_hits"],
+                    "agent_id": row.get("agent_id"),
+                }
+                for row in self.store.recent(
+                    limit, workspace_id, since=since, agent_id=agent_id
+                )
+            ],
+        }
+
+    def compare_runs(self, workspace_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+        before_id = str(payload.get("before_run_id") or payload.get("baseline_run_id") or "")
+        after_id = str(payload.get("after_run_id") or "")
+        dataset_id = str(payload.get("dataset_id") or "")
+        agent_version = str(payload.get("agent_version") or "")
+        if not after_id and dataset_id and agent_version:
+            after_id = self._latest_run_id(
+                workspace_id, agent_id=agent_version, dataset_id=dataset_id
+            ) or ""
+        if not before_id or not after_id:
+            raise ValueError("before_run_id and after_run_id are required")
+        before = self.store.get_diagnosis(before_id, workspace_id)
+        after = self.store.get_diagnosis(after_id, workspace_id)
+        if not before or not after:
+            raise KeyError("diagnosis not found")
+        return compare_diagnoses(before, after)
+
+    def export_finetune(
+        self,
+        workspace_id: str,
+        *,
+        dataset_id: str,
+        run_id: str | None = None,
+    ) -> dict[str, Any]:
+        row = self.store.get_dataset(workspace_id, dataset_id)
+        if not row:
+            raise KeyError(dataset_id)
+        rid = run_id or self._latest_run_id(workspace_id, dataset_id=dataset_id)
+        if not rid:
+            raise KeyError("diagnosis")
+        diagnosis = self.store.get_diagnosis(rid, workspace_id)
+        if not diagnosis:
+            raise KeyError(rid)
+        return labeled_trajectories(row["body"], diagnosis)
+
+    def _latest_run_id(
+        self,
+        workspace_id: str,
+        *,
+        agent_id: str | None = None,
+        dataset_id: str | None = None,
+    ) -> str | None:
+        for row in self.store.recent(200, workspace_id, agent_id=agent_id):
+            rid = str(row["id"])
+            if not dataset_id:
+                return rid
+            ingest = self.store.get_ingest(rid, workspace_id)
+            if ingest:
+                try:
+                    trace = json.loads(ingest["trace_json"])
+                except (json.JSONDecodeError, TypeError):
+                    trace = {}
+                if trace.get("dataset_id") == dataset_id:
+                    return rid
+            doc = self.store.get_diagnosis(rid, workspace_id) or {}
+            if doc.get("dataset_id") == dataset_id:
+                return rid
+        return None
 
     def _run_worker(self) -> None:
         while not self._stop.is_set():
@@ -357,9 +461,28 @@ class LiveApp:
             self.store.put_diagnosis(ingest_id, diagnosis)
             if source == "hosted":
                 self.store.add_usage(workspace_id, "hosted_judge")
+            self._notify_diagnosis(workspace_id, diagnosis)
             self._maybe_alert(workspace_id)
         except Exception as exc:  # noqa: BLE001 - worker must keep running
             self.store.mark_error(ingest_id, str(exc))
+
+    def _notify_diagnosis(self, workspace_id: str, diagnosis: dict[str, Any]) -> None:
+        ws = self.store.get_workspace(workspace_id)
+        url = (ws or {}).get("alert_webhook")
+        if not url:
+            return
+        cases = diagnosis.get("cases") or []
+        payload = {
+            "event": "diagnosis",
+            "run_id": diagnosis.get("run_id"),
+            "change_class": diagnosis.get("change_class"),
+            "passed": bool(cases) and all(bool(c.get("passed")) for c in cases),
+            "schema_version": diagnosis.get("schema_version") or SCHEMA_VERSION,
+            "scores": {
+                "task_success": (diagnosis.get("scores") or {}).get("task_success"),
+            },
+        }
+        post_webhook(url, payload)
 
     def _maybe_alert(self, workspace_id: str) -> None:
         if not self.settings.hosted:
@@ -490,7 +613,17 @@ def make_handler(app: LiveApp) -> type[BaseHTTPRequestHandler]:
             if path == "/v1/scores":
                 qs = parse_qs(parsed.query)
                 limit = int((qs.get("limit") or ["50"])[0])
-                self._json(200, app.scores(limit=max(1, min(limit, 200)), workspace_id=workspace_id))
+                since = (qs.get("since") or [None])[0]
+                agent_id = (qs.get("agent_id") or [None])[0]
+                self._json(
+                    200,
+                    app.scores(
+                        limit=max(1, min(limit, 200)),
+                        workspace_id=workspace_id,
+                        since=since,
+                        agent_id=agent_id,
+                    ),
+                )
                 return
             if path == "/v1/datasets":
                 self._json(200, {"datasets": app.store.list_datasets(workspace_id)})
@@ -517,8 +650,39 @@ def make_handler(app: LiveApp) -> type[BaseHTTPRequestHandler]:
                     },
                 )
                 return
+            if path == "/v1/export/finetune":
+                qs = parse_qs(parsed.query)
+                did = (qs.get("dataset_id") or [""])[0]
+                rid = (qs.get("run_id") or [None])[0]
+                if not did:
+                    self._json(400, {"error": "dataset_id required"})
+                    return
+                try:
+                    body = app.export_finetune(
+                        workspace_id, dataset_id=did, run_id=rid or None
+                    )
+                except KeyError:
+                    self._json(404, {"error": "not_found"})
+                    return
+                self._json(200, body)
+                return
             if path == "/v1/export":
                 self._json(200, app.export_bundle(workspace_id))
+                return
+            if path == "/v1/diagnoses":
+                qs = parse_qs(parsed.query)
+                limit = int((qs.get("limit") or ["50"])[0])
+                since = (qs.get("since") or [None])[0]
+                agent_id = (qs.get("agent_id") or [None])[0]
+                self._json(
+                    200,
+                    app.list_diagnoses(
+                        workspace_id,
+                        since=since,
+                        agent_id=agent_id,
+                        limit=max(1, min(limit, 200)),
+                    ),
+                )
                 return
             if path.startswith("/v1/diagnoses/"):
                 rest = path[len("/v1/diagnoses/") :]
@@ -674,7 +838,12 @@ def make_handler(app: LiveApp) -> type[BaseHTTPRequestHandler]:
                 try:
                     require_role(ident, "member")
                     did = path[len("/v1/datasets/") : -len("/run")].strip("/")
-                    doc = app.run_saved_dataset(workspace_id, did)
+                    version = payload.get("agent_version")
+                    doc = app.run_saved_dataset(
+                        workspace_id,
+                        did,
+                        agent_version=str(version) if version else None,
+                    )
                 except AccessError as exc:
                     self._json(exc.status, exc.body())
                     return
@@ -685,6 +854,21 @@ def make_handler(app: LiveApp) -> type[BaseHTTPRequestHandler]:
                     self._json(400, {"error": str(exc)})
                     return
                 self._json(200, doc)
+                return
+            if path == "/v1/compare":
+                try:
+                    require_role(ident, "member")
+                    body = app.compare_runs(workspace_id, payload)
+                except AccessError as exc:
+                    self._json(exc.status, exc.body())
+                    return
+                except KeyError:
+                    self._json(404, {"error": "not_found"})
+                    return
+                except ValueError as exc:
+                    self._json(400, {"error": str(exc)})
+                    return
+                self._json(200, body)
                 return
             if path == "/v1/alerts":
                 try:

@@ -1,0 +1,84 @@
+{
+  "id": "consumer-hours",
+  "n_runs": 2,
+  "budget": {
+    "max_cost_usd": 0.05,
+    "max_steps": 8
+  },
+  "policy": {
+    "deny_tools": ["send_money"]
+  },
+  "tool_schemas": {
+    "search": {
+      "type": "object",
+      "required": ["query"],
+      "properties": {
+        "query": { "type": "string" }
+      }
+    }
+  },
+  "cases": [
+    {
+      "id": "hours-ok",
+      "expected_tools": ["search"],
+      "traces": [
+        {
+          "spans": [
+            { "id": "ok-0-s0", "type": "llm", "latency_ms": 40, "cost_usd": 0.001 },
+            {
+              "id": "ok-0-s1",
+              "type": "tool",
+              "name": "search",
+              "args": { "query": "store hours" },
+              "latency_ms": 20,
+              "cost_usd": 0.0
+            }
+          ]
+        },
+        {
+          "spans": [
+            { "id": "ok-1-s0", "type": "llm", "latency_ms": 42, "cost_usd": 0.001 },
+            {
+              "id": "ok-1-s1",
+              "type": "tool",
+              "name": "search",
+              "args": { "query": "store hours" },
+              "latency_ms": 18,
+              "cost_usd": 0.0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "hours-lookup",
+      "expected_tools": ["search"],
+      "traces": [
+        {
+          "spans": [
+            {
+              "id": "lu-0-s0",
+              "type": "tool",
+              "name": "lookup",
+              "args": { "q": "hours" },
+              "latency_ms": 15,
+              "cost_usd": 0.0
+            }
+          ]
+        },
+        {
+          "spans": [
+            {
+              "id": "lu-1-s0",
+              "type": "tool",
+              "name": "lookup",
+              "args": { "q": "hours" },
+              "latency_ms": 16,
+              "cost_usd": 0.0
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
