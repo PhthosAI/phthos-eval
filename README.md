@@ -4,7 +4,7 @@ Score an **agent run**, not a chat reply.
 
 An agent can answer fluently and still call the wrong tool, loop, blow the budget, or break policy. Phthos Eval reads recorded traces (LLM steps + tool calls) and writes a **diagnosis JSON** you can gate CI on or hand to another system. It does **not** rewrite prompts, open PRs, or fine-tune.
 
-![How Phthos Eval works](docs/diagrams/overview.svg)
+![How Phthos Eval works](https://raw.githubusercontent.com/PhthosAI/phthos-eval/main/docs/diagrams/overview.png)
 
 Python 3.11+. Install from PyPI:
 
@@ -39,9 +39,9 @@ flowchart LR
 
 Optional: an LLM **judge** using **your** key. Without a key, everything above still runs.
 
-![Offline and live use the same scorers](docs/diagrams/offline-live.svg)
+![Offline and live use the same scorers](https://raw.githubusercontent.com/PhthosAI/phthos-eval/main/docs/diagrams/offline-live.png)
 
-![Diagnosis JSON: scores, typed failures, change_class](docs/diagrams/diagnosis.svg)
+![Diagnosis JSON: scores, typed failures, change_class](https://raw.githubusercontent.com/PhthosAI/phthos-eval/main/docs/diagrams/diagnosis.png)
 
 ### Sample scores (bundled fixture)
 
@@ -134,7 +134,7 @@ python -m phthos_eval run -d examples/support_agent/dataset.json -o diagnosis.js
 
 Same scorers as offline, on a **sampled** production stream. You run the process; data stays on your machine. This is not a hosted SaaS and not a LangSmith clone.
 
-![Live ingest samples then scores async](docs/diagrams/live.svg)
+![Live ingest samples then scores async](https://raw.githubusercontent.com/PhthosAI/phthos-eval/main/docs/diagrams/live.png)
 
 ```mermaid
 sequenceDiagram
