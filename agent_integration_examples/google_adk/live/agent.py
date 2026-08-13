@@ -1,6 +1,6 @@
 """Live: wrap an ADK agent, POST spans. Engine: docker compose up. UI http://127.0.0.1:8765
 
-    pip install google-adk ddgs phthos-eval
+    pip install -r agent_integration_examples/google_adk/requirements.txt
     $env:GOOGLE_API_KEY="your-gemini-key"
     python agent_integration_examples/google_adk/live/agent.py
 """
