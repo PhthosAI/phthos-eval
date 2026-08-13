@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.3 — 2026-08-13
+
+- Agent integration examples live under [`agent_integration_examples/<framework>/{lib,live}/`](agent_integration_examples/). Google ADK: [`google_adk/lib`](agent_integration_examples/google_adk/lib/agent.py) and [`google_adk/live`](agent_integration_examples/google_adk/live/agent.py). Removed `examples/adk/`.
+
 ## 0.6.2 — 2026-08-13
 
 - ADK example is two short scripts: [`examples/adk/lib.py`](examples/adk/lib.py) (offline) and [`examples/adk/live.py`](examples/adk/live.py). One DuckDuckGo search tool.

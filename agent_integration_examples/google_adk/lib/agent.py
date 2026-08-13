@@ -1,8 +1,8 @@
-"""Offline (lib) — simple ADK agent, one DuckDuckGo search tool.
+"""Offline (lib). One ADK agent, one DuckDuckGo search tool.
 
     pip install google-adk ddgs phthos-eval
     set GOOGLE_API_KEY=your-gemini-key
-    python examples/adk/lib.py
+    python agent_integration_examples/google_adk/lib/agent.py
 
 Paste onto an existing Agent (then run_dataset on sink.spans):
 
@@ -47,7 +47,12 @@ class EvalSink:
     def after_model_callback(self, callback_context, llm_response):
         t0 = float(callback_context.state.get("_t") or time.perf_counter())
         self.spans.append(
-            {"id": self._id(), "type": "llm", "latency_ms": round((time.perf_counter() - t0) * 1000, 3), "cost_usd": 0.001}
+            {
+                "id": self._id(),
+                "type": "llm",
+                "latency_ms": round((time.perf_counter() - t0) * 1000, 3),
+                "cost_usd": 0.001,
+            }
         )
 
     def before_tool_callback(self, tool, args, tool_context):
@@ -89,7 +94,9 @@ async def run_agent() -> list[dict[str, Any]]:
     )
     runner = InMemoryRunner(agent=agent, app_name="adk-ddg")
     sid = uuid.uuid4().hex[:8]
-    await runner.session_service.create_session(app_name=runner.app_name, user_id="u", session_id=sid)
+    await runner.session_service.create_session(
+        app_name=runner.app_name, user_id="u", session_id=sid
+    )
     async for _ in runner.run_async(
         user_id="u",
         session_id=sid,

@@ -1,10 +1,10 @@
-"""Live eval — same simple ADK + DuckDuckGo agent, POST traces to the engine.
+"""Live. Same ADK + DuckDuckGo agent; POST traces to the engine.
 
     pip install google-adk ddgs phthos-eval
     set GOOGLE_API_KEY=your-gemini-key
-    python examples/adk/live.py
+    python agent_integration_examples/google_adk/live/agent.py
 
-Engine: docker compose up  (this repo). UI: http://127.0.0.1:8765
+Engine: docker compose up (this repo). UI: http://127.0.0.1:8765
 
 Paste onto an existing Agent (then ingest sink.spans):
 
@@ -54,7 +54,12 @@ class EvalSink:
     def after_model_callback(self, callback_context, llm_response):
         t0 = float(callback_context.state.get("_t") or time.perf_counter())
         self.spans.append(
-            {"id": self._id(), "type": "llm", "latency_ms": round((time.perf_counter() - t0) * 1000, 3), "cost_usd": 0.001}
+            {
+                "id": self._id(),
+                "type": "llm",
+                "latency_ms": round((time.perf_counter() - t0) * 1000, 3),
+                "cost_usd": 0.001,
+            }
         )
 
     def before_tool_callback(self, tool, args, tool_context):
@@ -96,7 +101,9 @@ async def run_agent() -> list[dict[str, Any]]:
     )
     runner = InMemoryRunner(agent=agent, app_name="adk-ddg")
     sid = uuid.uuid4().hex[:8]
-    await runner.session_service.create_session(app_name=runner.app_name, user_id="u", session_id=sid)
+    await runner.session_service.create_session(
+        app_name=runner.app_name, user_id="u", session_id=sid
+    )
     async for _ in runner.run_async(
         user_id="u",
         session_id=sid,

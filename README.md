@@ -99,7 +99,7 @@ flowchart TB
 | Stack | Where traces already exist | What you map |
 |-------|----------------------------|--------------|
 | LangChain / LangGraph | Callbacks, LangSmith export, or run tree | Each LLM/tool event → one span |
-| Google ADK | Session / callbacks | Tool calls → `type: tool`. Copy-paste: [`examples/adk/`](examples/adk/) |
+| Google ADK | Session / callbacks | Tool calls → `type: tool`. Copy-paste: [`agent_integration_examples/google_adk/`](agent_integration_examples/google_adk/) |
 | CrewAI / AutoGen | Step / message log | Same |
 | Anything on OpenTelemetry / OpenInference | Span export | Filter LLM + tool spans |
 
@@ -129,8 +129,8 @@ Try the bundled examples after cloning this repo:
 ```bash
 python -m phthos_eval run -d fixtures/dataset.json -o diagnosis.json
 python -m phthos_eval run -d examples/support_agent/dataset.json -o diagnosis.json
-# Google ADK + DuckDuckGo: python examples/adk/lib.py
-# Live: python examples/adk/live.py
+# Google ADK + DuckDuckGo: python agent_integration_examples/google_adk/lib/agent.py
+# Live: python agent_integration_examples/google_adk/live/agent.py
 ```
 
 ---
