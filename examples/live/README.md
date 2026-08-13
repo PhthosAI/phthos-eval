@@ -35,7 +35,7 @@ pip install phthos-eval
 phthos-eval live-demo --url http://127.0.0.1:8765
 ```
 
-Then open the UI. Failed runs: **Save to offline dataset** writes `phthos-eval-data/from-live.json`. Re-score with the phase 2 runner:
+Then open the UI. ADK hours agent (lib + live): [`examples/adk/`](../adk/). Failed runs: **Save to offline dataset** writes `phthos-eval-data/from-live.json`. Re-score with the phase 2 runner:
 
 ```bash
 phthos-eval run -d phthos-eval-data/from-live.json -o diagnosis.json

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.1 — 2026-08-13
+
+- Google ADK example: one script, lib + live — [`examples/adk/hours.py`](examples/adk/hours.py). Four Agent callbacks, then `run_dataset` or `LiveClient.ingest`.
+
 ## 0.6.0 — 2026-08-13
 
 - Consumer contract: poll `GET /v1/diagnoses`, diagnosis webhooks (`event: diagnosis`, no traces), `POST /v1/compare`, `POST /v1/datasets/{id}/run` with `agent_version` (stored on ingest, not in diagnosis JSON). Schema stays **0.2.0**.
