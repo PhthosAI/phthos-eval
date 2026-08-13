@@ -92,13 +92,13 @@ flowchart TB
   PE --> DJ[diagnosis.json]
 ```
 
-**Today:** wrap the agent you already have. `TraceSink` attaches collectors; ADK/LangChain/CrewAI still **run** the agent. We only **score** spans.
+**Today:** wrap the agent you already have. `TraceSink` attaches collectors; the framework still **runs** the agent. We only **score** spans.
 
 ```python
 from phthos_eval import TraceSink
 
 sink = TraceSink()
-agent = sink.wrap(agent)   # Google ADK, LangChain/LangGraph, CrewAI
+agent = sink.wrap(agent)   # see TraceSink.frameworks
 # run the agent as usual, then:
 doc = sink.diagnose(expected_tools=["search"])
 ```
