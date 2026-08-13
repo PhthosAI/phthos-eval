@@ -21,10 +21,21 @@ class Failure(TypedDict):
 
 class Scores(TypedDict):
     task_success: float | None
-    cost: float | None
-    latency_ms: float | None
-    policy_hits: int | None
     n_run_reliability: float | None
+    pass_at_n: float | None
+    cost: float | None
+    cost_mean: float | None
+    latency_ms: float | None
+    latency_mean_ms: float | None
+    latency_p50_ms: float | None
+    latency_p95_ms: float | None
+    steps: int | None
+    steps_mean: float | None
+    tokens: float | None
+    policy_hits: int | None
+    wrong_tool_hits: int | None
+    budget_hits: int | None
+    loop_hits: int | None
 
 
 class JudgeResult(TypedDict):
@@ -38,6 +49,10 @@ class CaseResult(TypedDict):
     case_id: str
     passed: bool
     failures: list[Failure]
+    pass_rate: float
+    cost: float
+    latency_ms: float
+    steps: int
 
 
 class Diagnosis(TypedDict):
