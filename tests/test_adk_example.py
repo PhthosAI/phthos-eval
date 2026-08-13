@@ -7,5 +7,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def test_google_adk_lib_and_live_scripts_exist() -> None:
     adk = ROOT / "agent_integration_examples" / "google_adk"
-    assert (adk / "lib" / "agent.py").is_file()
-    assert (adk / "live" / "agent.py").is_file()
+    lib = (adk / "lib" / "agent.py").read_text(encoding="utf-8")
+    live = (adk / "live" / "agent.py").read_text(encoding="utf-8")
+    assert "sink.wrap(" in lib and "class EvalSink" not in lib
+    assert "sink.wrap(" in live and "class EvalSink" not in live

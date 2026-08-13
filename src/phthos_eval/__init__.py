@@ -19,6 +19,7 @@ from phthos_eval.scorers import (
     default_scorers,
     score_trace,
 )
+from phthos_eval.sink import TraceSink, instrument
 from phthos_eval.types import (
     CaseResult,
     ChangeClass,
@@ -51,10 +52,12 @@ __all__ = [
     "Scorer",
     "Scores",
     "ToolSchemaScorer",
+    "TraceSink",
     "WrongToolScorer",
     "compare_diagnoses",
     "default_scorers",
     "failure",
+    "instrument",
     "labeled_trajectories",
     "load_schema",
     "pointer",
