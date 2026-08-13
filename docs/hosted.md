@@ -58,11 +58,15 @@ Or the same dataset against the hosted engine:
 ```python
 client = LiveClient(os.environ["PHTHOS_EVAL_CLOUD_URL"], api_key=os.environ["PHTHOS_EVAL_CLOUD_KEY"])
 created = client.put_dataset("ci", json.load(open("eval/dataset.json")))
-doc = client.run_dataset(created["id"])
-# same diagnosis schema as OSS
+before = client.run_dataset(created["id"], agent_version="v1")
+# you change the agent outside eval, then:
+after = client.run_dataset(created["id"], agent_version="v2")
+client.compare(before_run_id=before["run_id"], after_run_id=after["run_id"])
 ```
 
-Export everything: `GET /v1/export`.
+Same diagnosis schema as OSS. Consumer contract (poll, webhook, fine-tune export): [`CONSUMER.md`](CONSUMER.md).
+
+Export everything: `GET /v1/export`. Labeled trajectories for **their** trainer: `GET /v1/export/finetune?dataset_id=`.
 
 ## Status
 

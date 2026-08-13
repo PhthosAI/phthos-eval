@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.0 — 2026-08-13
+
+- Consumer contract: poll `GET /v1/diagnoses`, diagnosis webhooks (`event: diagnosis`, no traces), `POST /v1/compare`, `POST /v1/datasets/{id}/run` with `agent_version` (stored on ingest, not in diagnosis JSON). Schema stays **0.2.0**.
+- Fine-tune **export only**: `phthos-eval export-finetune` / `GET /v1/export/finetune` (`phthos-eval-finetune.v1`). This product does not train.
+- CLI `phthos-eval compare`. Example consumer loop: [`examples/consumer/`](examples/consumer/). Docs: [`docs/CONSUMER.md`](docs/CONSUMER.md).
+
 ## 0.5.0 — 2026-08-13
 
 - Hosted **plans** (free / pro): longer retention, volume caps, seats, optional hosted judge, SAML hook. Deterministic scorers and diagnosis schema stay free. Self-host ignores plans.

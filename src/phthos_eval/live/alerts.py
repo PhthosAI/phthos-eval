@@ -8,6 +8,22 @@ from email.message import EmailMessage
 from typing import Any
 
 
+def post_webhook(url: str, payload: dict[str, Any]) -> str | None:
+    data = json.dumps(payload).encode("utf-8")
+    req = urllib.request.Request(
+        url,
+        data=data,
+        method="POST",
+        headers={"Content-Type": "application/json", "User-Agent": "phthos-eval"},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            resp.read()
+        return None
+    except (urllib.error.URLError, TimeoutError, OSError) as exc:
+        return str(exc)
+
+
 def fire_score_drop(
     *,
     webhook_url: str | None,
@@ -22,7 +38,7 @@ def fire_score_drop(
     """Best-effort webhook and/or email. Failures are returned, never raised."""
     sent: list[str] = []
     if webhook_url:
-        err = _webhook(webhook_url, payload)
+        err = post_webhook(webhook_url, payload)
         if err:
             sent.append(f"webhook_error:{err}")
         else:
@@ -42,22 +58,6 @@ def fire_score_drop(
         else:
             sent.append("email")
     return sent
-
-
-def _webhook(url: str, payload: dict[str, Any]) -> str | None:
-    data = json.dumps(payload).encode("utf-8")
-    req = urllib.request.Request(
-        url,
-        data=data,
-        method="POST",
-        headers={"Content-Type": "application/json", "User-Agent": "phthos-eval"},
-    )
-    try:
-        with urllib.request.urlopen(req, timeout=5) as resp:
-            resp.read()
-        return None
-    except (urllib.error.URLError, TimeoutError, OSError) as exc:
-        return str(exc)
 
 
 def _email(

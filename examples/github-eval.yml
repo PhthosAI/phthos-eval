@@ -2,7 +2,11 @@
 # Fails the job when phthos-eval reports findings.
 # Default: OSS lib on the runner (no Docker, no cloud).
 # Hosted alternative: LiveClient(PHTHOS_EVAL_CLOUD_URL, api_key=PHTHOS_EVAL_CLOUD_KEY)
-# then put_dataset + run_dataset — same diagnosis schema. See docs/hosted.md.
+# then put_dataset + run_dataset — same diagnosis schema. See docs/hosted.md
+# and docs/CONSUMER.md (poll / webhook / compare / export-finetune).
+# After *you* change the agent (eval never applies the fix):
+#   phthos-eval run -d eval/dataset.json -o after.json
+#   phthos-eval compare --before diagnosis.json --after after.json
 name: agent-eval
 on:
   push:

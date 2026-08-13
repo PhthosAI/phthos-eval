@@ -171,7 +171,7 @@ client = LiveClient("http://127.0.0.1:8765")
 client.ingest(spans=[...], agent_id="support", expected_tools=["search"])
 ```
 
-`GET /v1/scores` · `GET /v1/diagnoses/{id}` · `POST /v1/diagnoses/{id}/export` writes an offline dataset you can `phthos-eval run`.
+`GET /v1/scores` · `GET /v1/diagnoses` · `GET /v1/diagnoses/{id}` · `POST /v1/compare` · `POST /v1/diagnoses/{id}/export` writes an offline dataset you can `phthos-eval run`. After **you** change the agent: `phthos-eval compare --before a.json --after b.json`. Contract: [`docs/CONSUMER.md`](docs/CONSUMER.md). Example: [`examples/consumer/`](examples/consumer/).
 
 Demo (forces 100% sample — **not** for production):
 
@@ -208,7 +208,7 @@ client = LiveClient("https://your-eval-url", api_key="pk_…")
 client.ingest(spans=[...], expected_tools=["search"])
 ```
 
-CI can keep using `phthos-eval run` locally, or `put_dataset` / `run_dataset` on the hosted URL. Details: [`docs/hosted.md`](docs/hosted.md). What is stored: [`docs/PRIVACY.md`](docs/PRIVACY.md). `GET /status` for health.
+CI can keep using `phthos-eval run` locally, or `put_dataset` / `run_dataset` on the hosted URL. Compare two runs: `POST /v1/compare`. Poll: `GET /v1/diagnoses?since=`. Details: [`docs/hosted.md`](docs/hosted.md), [`docs/CONSUMER.md`](docs/CONSUMER.md). What is stored: [`docs/PRIVACY.md`](docs/PRIVACY.md). `GET /status` for health.
 
 Paid cloud extras (retention, SAML, hosted judges we meter, seats) are **ops**, not a paywall on scores. Catalog: [`docs/PLANS.md`](docs/PLANS.md). Stripe / SAML UI is the private overlay, not this package.
 
@@ -379,7 +379,7 @@ Each failure has a `type`, a `span_id`, and `evidence` (span / step / case / whi
 | `budget` | Over `max_cost_usd` or `max_steps` | `model` |
 | `loop` | Same tool + args ≥ 3 times in one trace | `prompt` |
 
-`change_class` is a **hint** for whatever improves the agent (you, CI, a later tool). This package does not apply the change.
+`change_class` is a **hint** for whatever improves the agent (you, CI, a later tool). This package does not apply the change. Another system can poll or take a webhook, ship a change, and we re-eval — [`docs/CONSUMER.md`](docs/CONSUMER.md).
 
 Values: `prompt` · `tool` · `policy` · `model` · `finetune_data` · `none` (clean run).
 
@@ -408,7 +408,7 @@ Do **not** reuse the **agent’s** production keys as the judge unless you inten
 ## What this is not
 
 - Not LangSmith (no prompt playground). Hosted mode is login + scores, not a prompt IDE.
-- Not an auto-fixer or fine-tuner. Export a failing live run; you (or another product) apply the change.
+- Not an auto-fixer or fine-tuner. Export a failing live run; you (or another product) apply the change. `export-finetune` is labeled traces for **their** trainer.
 - Not a hosted LLM. Judge is BYOK and off by default on live. Traces are not required to go to a model we own.
 
 ---

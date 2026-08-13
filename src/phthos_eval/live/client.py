@@ -5,7 +5,7 @@ import json
 import urllib.error
 import urllib.request
 from typing import Any
-from urllib.parse import urljoin
+from urllib.parse import urlencode, urljoin
 
 
 class LiveError(RuntimeError):
@@ -36,8 +36,26 @@ class LiveClient:
     def status(self) -> dict[str, Any]:
         return self._json("GET", "status")
 
-    def scores(self, limit: int = 50) -> dict[str, Any]:
-        return self._json("GET", f"v1/scores?limit={int(limit)}")
+    def scores(
+        self,
+        limit: int = 50,
+        *,
+        since: str | None = None,
+        agent_id: str | None = None,
+    ) -> dict[str, Any]:
+        return self._json("GET", "v1/scores" + self._qs(limit=limit, since=since, agent_id=agent_id))
+
+    def diagnoses(
+        self,
+        *,
+        since: str | None = None,
+        agent_id: str | None = None,
+        limit: int = 50,
+    ) -> dict[str, Any]:
+        return self._json(
+            "GET",
+            "v1/diagnoses" + self._qs(since=since, agent_id=agent_id, limit=limit),
+        )
 
     def diagnosis(self, run_id: str) -> dict[str, Any]:
         return self._json("GET", f"v1/diagnoses/{run_id}")
@@ -67,11 +85,42 @@ class LiveClient:
     def dataset(self, dataset_id: str) -> dict[str, Any]:
         return self._json("GET", f"v1/datasets/{dataset_id}")
 
-    def run_dataset(self, dataset_id: str) -> dict[str, Any]:
-        return self._json("POST", f"v1/datasets/{dataset_id}/run", {})
+    def run_dataset(self, dataset_id: str, *, agent_version: str | None = None) -> dict[str, Any]:
+        body: dict[str, Any] = {}
+        if agent_version:
+            body["agent_version"] = agent_version
+        return self._json("POST", f"v1/datasets/{dataset_id}/run", body)
+
+    def compare(
+        self,
+        *,
+        before_run_id: str | None = None,
+        after_run_id: str | None = None,
+        dataset_id: str | None = None,
+        agent_version: str | None = None,
+        baseline_run_id: str | None = None,
+    ) -> dict[str, Any]:
+        body: dict[str, Any] = {}
+        if before_run_id:
+            body["before_run_id"] = before_run_id
+        if after_run_id:
+            body["after_run_id"] = after_run_id
+        if dataset_id:
+            body["dataset_id"] = dataset_id
+        if agent_version:
+            body["agent_version"] = agent_version
+        if baseline_run_id:
+            body["baseline_run_id"] = baseline_run_id
+        return self._json("POST", "v1/compare", body)
 
     def export_bundle(self) -> dict[str, Any]:
         return self._json("GET", "v1/export")
+
+    def export_finetune(self, dataset_id: str, *, run_id: str | None = None) -> dict[str, Any]:
+        return self._json(
+            "GET",
+            "v1/export/finetune" + self._qs(dataset_id=dataset_id, run_id=run_id),
+        )
 
     def set_alerts(
         self,
@@ -207,3 +256,9 @@ class LiveClient:
         except urllib.error.HTTPError as exc:
             err_body = exc.read().decode("utf-8", errors="replace")
             raise LiveError(exc.code, err_body) from exc
+
+    def _qs(self, **kwargs: Any) -> str:
+        parts = {k: str(v) for k, v in kwargs.items() if v is not None}
+        if not parts:
+            return ""
+        return "?" + urlencode(parts)
