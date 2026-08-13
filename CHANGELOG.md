@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.5 — 2026-08-13
+
+- `TraceSink.wrap(agent)` adapters for the main Python agent stacks: Google ADK, LangChain/LangGraph, CrewAI, OpenAI Agents SDK, LlamaIndex, PydanticAI, AutoGen/AG2, Microsoft Agent Framework, Semantic Kernel, Smolagents, Agno, Haystack, DSPy, CAMEL, Strands, Langroid, Letta, Atomic Agents, BeeAI, LiveKit Agents. Same span shape; no extra framework installs.
+
 ## 0.6.4 — 2026-08-13
 
 - `TraceSink.wrap(agent)` captures llm/tool spans on Google ADK, LangChain/LangGraph, and CrewAI. Users do not copy an `EvalSink` class. Also `instrument(agent)`, `sink.diagnose()`, `sink.add_llm` / `sink.add_tool` for anything else.
