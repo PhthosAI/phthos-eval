@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.1 — 2026-08-13
+
+- User-facing README: install from PyPI, project integration, metrics, framework-agnostic traces (LangChain, Google ADK, OTel later).
+- CI example installs from PyPI.
+
 ## 0.1.0 — 2026-08-13
 
 First pip package.
