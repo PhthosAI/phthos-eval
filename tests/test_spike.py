@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from phthos_eval.cli import main
+from phthos_eval.constants import SCHEMA_VERSION
 from phthos_eval.runner import run_dataset
 from phthos_eval.schema import load_schema, validate_diagnosis
 
@@ -15,7 +16,7 @@ DATASET = ROOT / "fixtures" / "dataset.json"
 
 def test_schema_file_loads() -> None:
     schema = load_schema()
-    assert schema["properties"]["schema_version"]["const"] == "0.1.0"
+    assert schema["properties"]["schema_version"]["const"] == SCHEMA_VERSION
 
 
 def test_fixture_run_emits_typed_failure_and_change_class() -> None:

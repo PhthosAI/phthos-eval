@@ -34,7 +34,7 @@ flowchart LR
 ## What you get
 
 1. **Deterministic checks** (no API key): expected tools, argument shape, cost/step budget, deny-list policy, repeated tool loops.
-2. **N-run reliability**: the same case is scored more than once so a lucky pass does not look like a good agent.
+2. **A success profile, not one score**: `task_success` (pass^N), `n_run_reliability` (mean repeat pass-rate), `pass_at_n` (pass@N), plus cost-per-task, p95 latency, tool steps, policy hits.
 3. **A diagnosis file**: scores, typed failures with span ids, and a `change_class` hint (`tool`, `policy`, `prompt`, …).
 
 Optional: an LLM **judge** using **your** key. Without a key, everything above still runs.
@@ -49,11 +49,14 @@ Optional: an LLM **judge** using **your** key. Without a key, everything above s
 
 | Metric | Value | What that means on this suite |
 |--------|------:|-------------------------------|
-| `task_success` | 0.20 | 1 of 5 cases passed **both** runs |
-| `n_run_reliability` | 0.20 | Same as task success in this version |
-| `cost` | 1.71 | USD summed across scored traces |
-| `latency_ms` | 8593 | Summed span latency |
+| `task_success` (pass^N) | 0.20 | 1 of 5 cases passed **every** repeat |
+| `n_run_reliability` | 0.20 | Mean per-case pass fraction (here the same: no mixed cases) |
+| `pass_at_n` (pass@N) | 0.20 | Share of cases with **at least one** passing repeat |
+| `cost` / `cost_mean` | 1.71 / 0.171 | Total USD / USD per trace |
+| `latency_p50_ms` / `latency_p95_ms` | 30 / 4100 | SLA percentiles of per-trace latency |
+| `steps` / `steps_mean` | 14 / 1.4 | Tool-call count (step efficiency) |
 | `policy_hits` | 2 | Deny-list hits (`send_money`) |
+| `wrong_tool_hits` / `budget_hits` / `loop_hits` | 4 / 2 / 2 | Other typed failures |
 | `change_class` | `policy` | Highest-priority hint (policy before tool/budget/loop) |
 
 | Case | Passed | What fired |
@@ -64,7 +67,7 @@ Optional: an LLM **judge** using **your** key. Without a key, everything above s
 | `fail-policy` | no | `policy` (and `wrong_tool`: denied tool is not in the allow-list) |
 | `fail-loop` | no | `loop` |
 
-Support-agent dogfood (`examples/support_agent/dataset.json`): `task_success` **0.50**, `cost` **0.008**, `policy_hits` **2**, `change_class` **policy**. `status-ok` passes; `refund-denied` fails.
+Support-agent dogfood (`examples/support_agent/dataset.json`): `task_success` **0.50**, `cost_mean` **0.002**, `latency_p95_ms` **230**, `policy_hits` **2**, `change_class` **policy**. `status-ok` passes; `refund-denied` fails.
 
 ---
 
@@ -298,19 +301,42 @@ Tool spans: `name`, `args`, optional `cost_usd`, `latency_ms`.
 
 ## Metrics (what they mean)
 
-These are on the **whole suite** in `diagnosis.json` → `scores`. Numbers in **Example** are from `fixtures/dataset.json` (table above).
+Suite-level `diagnosis.json` → `scores`. This is an **AgentSLABench-style profile** (success under cost/latency/policy), not a single 0–1 judge number.
+
+**Success (codegen / agent standard: pass^k vs pass@k):**
 
 | Metric | Range | Example | Why it matters |
 |--------|--------|--------:|----------------|
-| `task_success` | 0–1 | 0.20 | Share of cases where **every** N-run passed. A pretty last message does not count. |
-| `n_run_reliability` | 0–1 | 0.20 | Same as `task_success` in this version: did the case pass on all repeats? Single-run “90%” is often luck. |
-| `cost` | USD (sum) | 1.71 | Token/tool spend across scored traces. A correct 40-call run can still be a failed product. |
-| `latency_ms` | ms (sum) | 8593 | Time in the recorded spans. Useful for p95-style budgets later; here it is the total you logged. |
-| `policy_hits` | count | 2 | How many deny-list (or custom policy) failures fired. Safety/compliance, not “quality vibe”. |
+| `task_success` | 0–1 | 0.20 | **pass^N**: share of cases where **every** N-run passed. Job done, not a fluent last message. |
+| `n_run_reliability` | 0–1 | 0.20 | Mean over cases of (passing traces / N). A flaky case scores 0.5, not 0. Distinct from `task_success`. |
+| `pass_at_n` | 0–1 | 0.20 | **pass@N**: share of cases with **at least one** passing repeat. Lucky-once still counts here. |
 
-`judge.score` (0–1) appears only if you set a judge key. Treat it as extra signal, not the verdict. Deterministic failures are the source of truth.
+On the bundled fixture every case is all-pass or all-fail, so the three numbers match. They diverge as soon as a case is mixed (see tests).
 
-Per case: `cases[]` has `passed` and that case’s `failures`.
+**Cost, latency, steps (ops / SLA):**
+
+| Metric | Range | Example | Why it matters |
+|--------|--------|--------:|----------------|
+| `cost` | USD (sum) | 1.71 | Total spend on scored traces. |
+| `cost_mean` | USD / trace | 0.171 | **Cost-per-task** — a correct 40-call run is still a failed product. |
+| `latency_ms` | ms (sum) | 8593 | Sum of per-trace latency (audit). |
+| `latency_mean_ms` | ms | 859.3 | Typical trace time. |
+| `latency_p50_ms` / `latency_p95_ms` | ms | 30 / 4100 | **SLA tail**. p95 is what AgentSLABench / APM use, not the sum. |
+| `steps` / `steps_mean` | count | 14 / 1.4 | Tool-call count (DeepEval-style step efficiency). |
+| `tokens` | count or null | null | Sum of span `tokens` / `input_tokens`+`output_tokens` if you logged them. |
+
+**Safety / typed hits:**
+
+| Metric | Example | Why it matters |
+|--------|--------:|----------------|
+| `policy_hits` | 2 | Deny-list (or custom policy) fires. |
+| `wrong_tool_hits` | 4 | Allow-list / schema misses. |
+| `budget_hits` | 2 | Over `max_cost_usd` or `max_steps`. |
+| `loop_hits` | 2 | Same tool+args ≥ 3 times. |
+
+`judge.score` (0–1) appears only if you set a judge key. Treat it as extra signal, not the verdict. We do **not** ship hallucination/fluency vanity scores — those are judge-only and not the contract.
+
+Per case: `cases[]` has `passed`, `pass_rate`, `cost`, `latency_ms`, `steps`, and that case’s `failures`.
 
 ---
 

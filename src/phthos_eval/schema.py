@@ -21,10 +21,21 @@ REQUIRED_TOP = (
 )
 REQUIRED_SCORES = (
     "task_success",
-    "cost",
-    "latency_ms",
-    "policy_hits",
     "n_run_reliability",
+    "pass_at_n",
+    "cost",
+    "cost_mean",
+    "latency_ms",
+    "latency_mean_ms",
+    "latency_p50_ms",
+    "latency_p95_ms",
+    "steps",
+    "steps_mean",
+    "tokens",
+    "policy_hits",
+    "wrong_tool_hits",
+    "budget_hits",
+    "loop_hits",
 )
 
 

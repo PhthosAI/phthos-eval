@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.0 — 2026-08-13
+
+- Diagnosis schema **0.2.0**: industry profile — `pass^N` (`task_success`), mean N-run reliability, `pass@N`, cost-per-task, p50/p95 latency, tool steps, token sum if logged, per-type hit counts.
+- `n_run_reliability` is no longer a duplicate of `task_success`.
+
 ## 0.2.3 — 2026-08-13
 
 - README diagrams as PNG with absolute GitHub URLs so PyPI can load them (relative SVG only works on GitHub).
@@ -28,7 +33,7 @@
 
 First pip package.
 
-- Versioned diagnosis schema `0.1.0` (`schema/diagnosis.v0.1.0.json`). Breaking schema changes bump the major version.
+- Versioned diagnosis schema `0.1.0` (`schema/diagnosis.v0.1.0.json`; current is `0.2.0`). Breaking schema changes bump the major version.
 - Offline CLI: `phthos-eval run` / `phthos-eval check`.
 - Deterministic scorers (tool, schema, budget, policy, loop). Optional BYOK LLM judge.
 - Custom `Scorer` hook. `--fail-on-findings` for CI.
