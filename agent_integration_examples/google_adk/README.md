@@ -1,6 +1,6 @@
 # Google ADK
 
-`sink.wrap(Agent(...))`, run ADK as usual, then `diagnose` (lib) or `ingest` (live).
+DuckDuckGo search tool. `sink.wrap(Agent(...))`, run ADK as usual, then `diagnose` (lib) or `ingest` (live).
 
 ```powershell
 pip install google-adk ddgs phthos-eval

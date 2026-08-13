@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.7 — 2026-08-13
+
+- `agent_integration_examples/README.md` is the generic layout (framework / lib / live + wrap). ADK install and run commands stay under `google_adk/`.
+
 ## 0.6.6 — 2026-08-13
 
 - Google ADK examples are wrap → run → `diagnose` / `ingest` only. No copied callbacks, no extra eval dataset fields.
