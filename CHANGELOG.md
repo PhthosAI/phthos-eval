@@ -1,8 +1,12 @@
 # Changelog
 
+## 0.6.2 — 2026-08-13
+
+- ADK example is two short scripts: [`examples/adk/lib.py`](examples/adk/lib.py) (offline) and [`examples/adk/live.py`](examples/adk/live.py). One DuckDuckGo search tool.
+
 ## 0.6.1 — 2026-08-13
 
-- Google ADK example: one script, lib + live — [`examples/adk/hours.py`](examples/adk/hours.py). Four Agent callbacks, then `run_dataset` or `LiveClient.ingest`.
+- Google ADK example: [`examples/adk/hours.py`](examples/adk/hours.py) (replaced in 0.6.2 by `lib.py` / `live.py`).
 
 ## 0.6.0 — 2026-08-13
 
