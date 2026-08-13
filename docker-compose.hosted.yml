@@ -1,0 +1,26 @@
+# Hosted mode — same image as docker-compose.yml, with tenant login.
+# Self-host default remains: docker compose up (no accounts).
+services:
+  phthos-eval:
+    build: .
+    ports:
+      - "8765:8765"
+    environment:
+      PHTHOS_EVAL_HOSTED: "1"
+      PHTHOS_EVAL_SAMPLE_RATE: ${PHTHOS_EVAL_SAMPLE_RATE:-0.05}
+      PHTHOS_EVAL_DATA_DIR: /data
+      PHTHOS_EVAL_LIVE_CONFIG: /etc/phthos-eval/config.json
+      PHTHOS_EVAL_LIVE_HOST: "0.0.0.0"
+      PHTHOS_EVAL_RETENTION_DAYS: ${PHTHOS_EVAL_RETENTION_DAYS:-30}
+      PHTHOS_EVAL_PUBLIC_URL: ${PHTHOS_EVAL_PUBLIC_URL:-}
+      PHTHOS_EVAL_LIVE_JUDGE: ${PHTHOS_EVAL_LIVE_JUDGE:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      PHTHOS_EVAL_API_KEY: ${PHTHOS_EVAL_API_KEY:-}
+      PHTHOS_EVAL_SMTP_HOST: ${PHTHOS_EVAL_SMTP_HOST:-}
+      PHTHOS_EVAL_SMTP_PORT: ${PHTHOS_EVAL_SMTP_PORT:-587}
+      PHTHOS_EVAL_SMTP_USER: ${PHTHOS_EVAL_SMTP_USER:-}
+      PHTHOS_EVAL_SMTP_PASSWORD: ${PHTHOS_EVAL_SMTP_PASSWORD:-}
+      PHTHOS_EVAL_SMTP_FROM: ${PHTHOS_EVAL_SMTP_FROM:-}
+    volumes:
+      - ./phthos-eval-data:/data
+    command: ["phthos-eval", "live", "--hosted", "--host", "0.0.0.0", "--port", "8765"]

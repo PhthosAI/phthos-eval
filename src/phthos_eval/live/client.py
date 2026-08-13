@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import http.cookiejar
 import json
 import urllib.error
 import urllib.request
@@ -15,20 +16,81 @@ class LiveError(RuntimeError):
 
 
 class LiveClient:
-    """HTTP client for a self-hosted live engine. Ingest does not wait for scoring."""
+    """HTTP client for a live engine (self-host or hosted). Ingest does not wait for scoring."""
 
-    def __init__(self, base_url: str = "http://127.0.0.1:8765", timeout: float = 10) -> None:
+    def __init__(
+        self,
+        base_url: str = "http://127.0.0.1:8765",
+        timeout: float = 10,
+        api_key: str | None = None,
+    ) -> None:
         self.base_url = base_url.rstrip("/") + "/"
         self.timeout = timeout
+        self.api_key = api_key
+        self._jar = http.cookiejar.CookieJar()
+        self._opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(self._jar))
 
     def health(self) -> dict[str, Any]:
         return self._json("GET", "health")
+
+    def status(self) -> dict[str, Any]:
+        return self._json("GET", "status")
 
     def scores(self, limit: int = 50) -> dict[str, Any]:
         return self._json("GET", f"v1/scores?limit={int(limit)}")
 
     def diagnosis(self, run_id: str) -> dict[str, Any]:
         return self._json("GET", f"v1/diagnoses/{run_id}")
+
+    def me(self) -> dict[str, Any]:
+        return self._json("GET", "v1/me")
+
+    def signup(self, email: str, password: str, workspace_name: str = "workspace") -> dict[str, Any]:
+        return self._json(
+            "POST",
+            "v1/signup",
+            {"email": email, "password": password, "workspace_name": workspace_name},
+        )
+
+    def login(self, email: str, password: str) -> dict[str, Any]:
+        return self._json("POST", "v1/login", {"email": email, "password": password})
+
+    def logout(self) -> dict[str, Any]:
+        return self._json("POST", "v1/logout", {})
+
+    def put_dataset(self, name: str, dataset: dict[str, Any]) -> dict[str, Any]:
+        return self._json("POST", "v1/datasets", {"name": name, "dataset": dataset})
+
+    def datasets(self) -> dict[str, Any]:
+        return self._json("GET", "v1/datasets")
+
+    def dataset(self, dataset_id: str) -> dict[str, Any]:
+        return self._json("GET", f"v1/datasets/{dataset_id}")
+
+    def run_dataset(self, dataset_id: str) -> dict[str, Any]:
+        return self._json("POST", f"v1/datasets/{dataset_id}/run", {})
+
+    def export_bundle(self) -> dict[str, Any]:
+        return self._json("GET", "v1/export")
+
+    def set_alerts(
+        self,
+        *,
+        webhook_url: str | None = None,
+        alert_email: str | None = None,
+        min_pass_rate: float | None = None,
+    ) -> dict[str, Any]:
+        body: dict[str, Any] = {}
+        if webhook_url is not None:
+            body["webhook_url"] = webhook_url
+        if alert_email is not None:
+            body["alert_email"] = alert_email
+        if min_pass_rate is not None:
+            body["min_pass_rate"] = min_pass_rate
+        return self._json("POST", "v1/alerts", body)
+
+    def alerts(self) -> dict[str, Any]:
+        return self._json("GET", "v1/alerts")
 
     def ingest(
         self,
@@ -59,14 +121,17 @@ class LiveClient:
 
     def _json(self, method: str, path: str, body: dict[str, Any] | None = None) -> dict[str, Any]:
         data = None if body is None else json.dumps(body).encode("utf-8")
+        headers = {"Content-Type": "application/json", "Accept": "application/json"}
+        if self.api_key:
+            headers["Authorization"] = f"Bearer {self.api_key}"
         req = urllib.request.Request(
             urljoin(self.base_url, path),
             data=data,
             method=method,
-            headers={"Content-Type": "application/json", "Accept": "application/json"},
+            headers=headers,
         )
         try:
-            with urllib.request.urlopen(req, timeout=self.timeout) as resp:
+            with self._opener.open(req, timeout=self.timeout) as resp:
                 raw = resp.read().decode("utf-8")
                 return json.loads(raw) if raw else {}
         except urllib.error.HTTPError as exc:

@@ -135,7 +135,7 @@ python -m phthos_eval run -d examples/support_agent/dataset.json -o diagnosis.js
 
 ## Live engine (self-host)
 
-Same scorers as offline, on a **sampled** production stream. You run the process; data stays on your machine. This is not a hosted SaaS and not a LangSmith clone.
+Same scorers as offline, on a **sampled** production stream. You run the process; data stays on your machine. This is not LangSmith. Optional [hosted mode](#hosted-mode-same-engine) (`--hosted`) is the same binary with login and tenants — OSS self-host stays the default.
 
 ![Live ingest samples then scores async](https://raw.githubusercontent.com/PhthosAI/phthos-eval/main/docs/diagrams/live.png)
 
@@ -183,6 +183,32 @@ phthos-eval live-demo
 Full Compose / OTel / cost knobs: [`examples/live/README.md`](examples/live/README.md).
 
 **Do not bankrupt yourself:** default is 5% sample and **no** LLM judge. A judge key on 100% of live traffic is usually more expensive than the agent. Opt in with `--live-judge` plus `OPENAI_API_KEY` / `PHTHOS_EVAL_API_KEY` only if you accept that bill.
+
+---
+
+## Hosted mode (same engine)
+
+We operate this in cloud; you can also run it yourself. It is **not** a second product: `PHTHOS_EVAL_HOSTED=1` or `phthos-eval live --hosted`.
+
+- Sign-up / login, isolated tenants, dashboard (live, history, datasets), alerts when pass rate drops
+- Default **BYOK** — traces are not sent to a model we own; live judge still off unless `--live-judge` and **your** key
+- Export diagnoses + datasets (`GET /v1/export`) — no hostage data
+- Self-host path above stays complete without accounts
+
+```bash
+phthos-eval live --hosted --host 0.0.0.0
+# or
+docker compose -f docker-compose.hosted.yml up --build
+```
+
+```python
+from phthos_eval.live import LiveClient
+
+client = LiveClient("https://your-eval-url", api_key="pk_…")
+client.ingest(spans=[...], expected_tools=["search"])
+```
+
+CI can keep using `phthos-eval run` locally, or `put_dataset` / `run_dataset` on the hosted URL. Details: [`docs/hosted.md`](docs/hosted.md). What is stored: [`docs/PRIVACY.md`](docs/PRIVACY.md). `GET /status` for health.
 
 ---
 
@@ -367,6 +393,8 @@ Not required. Deterministic scorers always run.
 | `PHTHOS_EVAL_JUDGE_BASE_URL` | OpenAI-compatible URL (OpenAI, Ollama, a gateway, …) |
 | `PHTHOS_EVAL_JUDGE_MODEL` | Model id (default `gpt-4o-mini`) |
 | `PHTHOS_EVAL_LIVE_JUDGE` | Live engine only: set to `1` (or `--live-judge`) to run the judge on **sampled** traces. Off by default so a leftover key cannot bill every ingest. |
+| `PHTHOS_EVAL_HOSTED` | `1` or `--hosted`: require sign-up / API keys and isolate tenants. Omit for open self-host. |
+| `PHTHOS_EVAL_RETENTION_DAYS` | Hosted auto-prune (default 30). |
 
 Do **not** reuse the **agent’s** production keys as the judge unless you intend that. Agent keys run the system under test; judge keys only score. With no judge key, `judge.skipped` is `true` and `reason` is `no_key`.
 
@@ -374,9 +402,9 @@ Do **not** reuse the **agent’s** production keys as the judge unless you inten
 
 ## What this is not
 
-- Not LangSmith (no prompt playground, no hosted cloud accounts).
+- Not LangSmith (no prompt playground). Hosted mode is login + scores, not a prompt IDE.
 - Not an auto-fixer or fine-tuner. Export a failing live run; you (or another product) apply the change.
-- Not a hosted LLM. OSS / self-host uses your machine and, optionally, your judge key.
+- Not a hosted LLM. Judge is BYOK and off by default on live. Traces are not required to go to a model we own.
 
 ---
 

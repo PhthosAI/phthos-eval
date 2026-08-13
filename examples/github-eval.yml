@@ -1,5 +1,8 @@
 # Copy into a consumer repo as .github/workflows/eval.yml
 # Fails the job when phthos-eval reports findings.
+# Default: OSS lib on the runner (no Docker, no cloud).
+# Hosted alternative: LiveClient(PHTHOS_EVAL_CLOUD_URL, api_key=PHTHOS_EVAL_CLOUD_KEY)
+# then put_dataset + run_dataset — same diagnosis schema. See docs/hosted.md.
 name: agent-eval
 on:
   push:

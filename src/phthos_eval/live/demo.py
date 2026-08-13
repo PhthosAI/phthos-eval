@@ -96,8 +96,8 @@ DEMO = [
 ]
 
 
-def run_demo(url: str) -> int:
-    client = LiveClient(url)
+def run_demo(url: str, api_key: str | None = None) -> int:
+    client = LiveClient(url, api_key=api_key)
     health = client.health()
     print(f"engine {url}  sample_rate={health.get('sample_rate')}  judge={health.get('judge')}")
     for item in DEMO:

@@ -9,6 +9,8 @@ from typing import Any
 
 DEFAULT_SAMPLE_RATE = 0.05
 DEFAULT_PORT = 8765
+DEFAULT_RETENTION_DAYS = 30
+DEFAULT_ALERT_MIN_PASS_RATE = 0.8
 
 
 def _truthy(value: str | None) -> bool:
@@ -40,6 +42,15 @@ class LiveSettings:
     data_dir: Path = Path("phthos-eval-data")
     config_path: Path | None = None
     live_judge: bool = False
+    hosted: bool = False
+    retention_days: int = DEFAULT_RETENTION_DAYS
+    alert_min_pass_rate: float = DEFAULT_ALERT_MIN_PASS_RATE
+    smtp_host: str | None = None
+    smtp_port: int = 587
+    smtp_user: str | None = None
+    smtp_password: str | None = None
+    smtp_from: str | None = None
+    public_base_url: str | None = None
 
     @classmethod
     def from_env(cls) -> LiveSettings:
@@ -48,6 +59,9 @@ class LiveSettings:
         data = os.environ.get("PHTHOS_EVAL_DATA_DIR")
         config = os.environ.get("PHTHOS_EVAL_LIVE_CONFIG")
         host = os.environ.get("PHTHOS_EVAL_LIVE_HOST") or "127.0.0.1"
+        retention = os.environ.get("PHTHOS_EVAL_RETENTION_DAYS")
+        alert = os.environ.get("PHTHOS_EVAL_ALERT_MIN_PASS_RATE")
+        smtp_port = os.environ.get("PHTHOS_EVAL_SMTP_PORT")
         return cls(
             host=host,
             port=int(port_raw) if port_raw else DEFAULT_PORT,
@@ -55,6 +69,15 @@ class LiveSettings:
             data_dir=Path(data) if data else Path("phthos-eval-data"),
             config_path=Path(config) if config else None,
             live_judge=_truthy(os.environ.get("PHTHOS_EVAL_LIVE_JUDGE")),
+            hosted=_truthy(os.environ.get("PHTHOS_EVAL_HOSTED")),
+            retention_days=int(retention) if retention else DEFAULT_RETENTION_DAYS,
+            alert_min_pass_rate=float(alert) if alert else DEFAULT_ALERT_MIN_PASS_RATE,
+            smtp_host=os.environ.get("PHTHOS_EVAL_SMTP_HOST") or None,
+            smtp_port=int(smtp_port) if smtp_port else 587,
+            smtp_user=os.environ.get("PHTHOS_EVAL_SMTP_USER") or None,
+            smtp_password=os.environ.get("PHTHOS_EVAL_SMTP_PASSWORD") or None,
+            smtp_from=os.environ.get("PHTHOS_EVAL_SMTP_FROM") or None,
+            public_base_url=os.environ.get("PHTHOS_EVAL_PUBLIC_URL") or None,
         )
 
     @property
@@ -64,6 +87,11 @@ class LiveSettings:
     @property
     def export_path(self) -> Path:
         return self.data_dir / "from-live.json"
+
+    @property
+    def cookie_secure(self) -> bool:
+        url = (self.public_base_url or "").lower()
+        return url.startswith("https://")
 
     def dataset_config(self) -> dict[str, Any]:
         if self.config_path and self.config_path.is_file():
