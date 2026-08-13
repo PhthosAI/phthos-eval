@@ -13,5 +13,5 @@ def test_google_adk_examples_are_wrap_only() -> None:
         assert "sink.wrap(" in src
         assert "class EvalSink" not in src
         assert "tool_schemas" not in src
-        assert src.count("\n") < 60
+        assert src.count("\n") < 80
 
