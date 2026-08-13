@@ -99,7 +99,7 @@ flowchart TB
 | Stack | Where traces already exist | What you map |
 |-------|----------------------------|--------------|
 | LangChain / LangGraph | Callbacks, LangSmith export, or run tree | Each LLM/tool event → one span |
-| Google ADK | Session / event log | Tool calls → `type: tool` |
+| Google ADK | Session / callbacks | Tool calls → `type: tool`. Copy-paste: [`examples/adk/`](examples/adk/) |
 | CrewAI / AutoGen | Step / message log | Same |
 | Anything on OpenTelemetry / OpenInference | Span export | Filter LLM + tool spans |
 
@@ -129,6 +129,8 @@ Try the bundled examples after cloning this repo:
 ```bash
 python -m phthos_eval run -d fixtures/dataset.json -o diagnosis.json
 python -m phthos_eval run -d examples/support_agent/dataset.json -o diagnosis.json
+# Google ADK (needs `pip install google-adk`): python examples/adk/hours.py
+# Live: python examples/adk/hours.py --live
 ```
 
 ---
