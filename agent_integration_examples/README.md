@@ -5,6 +5,7 @@ One folder per framework, then **lib** (offline) and **live** (engine). Same wra
 ```text
 agent_integration_examples/
   <framework>/
+    requirements.txt
     lib/     wrap → run → diagnose
     live/    wrap → run → ingest
 ```

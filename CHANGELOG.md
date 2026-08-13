@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.9 — 2026-08-13
+
+- Google ADK example installs from `agent_integration_examples/google_adk/requirements.txt`.
+
 ## 0.6.8 — 2026-08-13
 
 - ADK examples comment wrap / diagnose / ingest so live ingest is clearly “POST spans to the engine”, not a call into the agent.
